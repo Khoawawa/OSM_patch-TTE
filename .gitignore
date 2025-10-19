@@ -1,0 +1,7 @@
+mydata
+__pycache__
+cache
+*.png
+*.svg
+*.yml
+*.graphml

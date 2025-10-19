@@ -1,0 +1,2 @@
+stuff needed in args:
+pooling_method
