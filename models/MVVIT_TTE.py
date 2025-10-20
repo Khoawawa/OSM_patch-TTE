@@ -1,7 +1,7 @@
 import torch
 from models.VideoMae import ViTEncoder
 from models.ContextEncoder import ContextEncoder
-from LayerNormGRU import LayerNormGRU
+from models.LayerNormGRU import LayerNormGRU
 import torch.nn.functional as F
 import torch.nn as nn
 import math
