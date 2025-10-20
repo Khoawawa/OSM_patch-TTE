@@ -10,7 +10,8 @@ from torch.utils.data import Dataset
 from torch.utils.data.dataloader import DataLoader
 from utils.util import StandardScaler2
 from PIL import Image
-import torchvision.transforms as T
+import torchvision.transforms as T 
+from models.MVVIT_TTE import MMVIT_TTE
 
 
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}
@@ -303,19 +304,13 @@ def create_model(args):
         model_config = json.load(file)[args.model]
     args.model_config = model_config
     model_config['pad_token_id'] = args.data_config['edges'] + 1
-    
-    return MulT_TTE(**model_config), WGANCritic(model_config['seq_hidden_dim'],(model_config['discriminator_dim'] if hasattr(model_config,'discriminator_dim') else 64))
-
-def create_main_loss(loss_bert,loss_MAE,loss_D, args):
+    return MMVIT_TTE(**model_config)
+def create_main_loss(loss_bert,loss, args):
     beta = args.beta
-    theta = args.theta
-    bert_weight  = 1 - beta - theta if loss_D is not None else 1 - beta
-    weighted_critic_loss = (theta * loss_D / (loss_D.abs() / loss_MAE + 1e-4).detach()) if loss_D is not None else torch.tensor(0.0, device=loss_bert.device)
+    bert_weight  = 1 - beta
         
-    return bert_weight*loss_bert / (loss_bert / loss_MAE + 1e-4).detach()\
-            + beta * loss_MAE\
-            + weighted_critic_loss
-            # + (theta * loss_D) if loss_D is not None else 0
+    return bert_weight*loss_bert / (loss_bert / loss + 1e-4).detach()\
+            + beta * loss\
 
 def create_loss(args):
     if args.loss == 'rmse':

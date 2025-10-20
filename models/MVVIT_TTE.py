@@ -14,7 +14,7 @@ import copy
 # then they are fed into a cross attention fusion block
 # then go into mlp to extract the time#
 class MMVIT_TTE(torch.nn.Module):
-    def __init__(self,input_dim, ctx_out_dim, seq_hidden_dim, seq_layer, decoder_layer,
+    def __init__(self,ctx_out_dim, seq_hidden_dim, seq_layer, decoder_layer,
                  bert_attention_heads, bert_hiden_size, pad_token_id, bert_hidden_layers, vocab_size=27300, ca_head=8):
         super().__init__()
         self.visual_encoder = ViTEncoder()
