@@ -11,8 +11,6 @@ from torch.utils.data.dataloader import DataLoader
 from utils.util import StandardScaler2
 from PIL import Image
 import torchvision.transforms as T
-from shapely.geometry import LineString, box
-from models.PTTE import PTTE
 
 
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}

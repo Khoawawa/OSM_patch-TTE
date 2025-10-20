@@ -5,6 +5,7 @@ import os
 import json
 import pickle
 from types import SimpleNamespace
+from models.ContextEncoder import ContextEncoder
 
 grid_index, edgeinfo, nodeinfo, scaler, scaler2 = None, None, None, None, None
 args = SimpleNamespace(
@@ -41,4 +42,8 @@ prep.info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2]
 loader,scaler_temp = load_datadict(args)
 
 data, gps = next(iter(loader['test']))
+
+# model = ContextEncoder(8, 512, 0, 4)
+# output = model(data, args)
+# print("Output shape: ", output.shape)  # Expected output shape based on model design
 
