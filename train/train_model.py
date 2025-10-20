@@ -5,12 +5,12 @@ import gc
 
 import numpy as np
 import torch
-from torch import nn, optim
+from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from utils.metric import calculate_metrics
-from utils.util import save_model, to_var, W1Distance
+from utils.util import save_model, to_var
 from utils.prepare import create_main_loss
 def set_requires_grad(module, flag: bool):
     for p in module.parameters():

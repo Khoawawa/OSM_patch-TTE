@@ -1,8 +1,3 @@
-def require(key: str, **kwargs):
-    if key not in kwargs:
-        raise KeyError(f"Missing required argument: '{key}'")
-    return kwargs[key]
-
 import os
 import torch
 from torch.autograd import Variable
