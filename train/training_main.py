@@ -12,7 +12,7 @@ from utils.prepare import create_model, create_loss
 from utils.prepare import load_datadict, load_datadoct_pre
 from utils.prepare import load_test_datadict
 from utils.metric import calculate_metrics
-from utils.util import to_var, W1Distance
+from utils.util import to_var
 import time
 
 def test_model(model, data_loader, args):
