@@ -20,8 +20,8 @@ class MMVIT_TTE(torch.nn.Module):
         self.visual_encoder = ViTEncoder()
         self.context_encoder = ContextEncoder(bert_attention_heads, bert_hiden_size, pad_token_id, bert_hidden_layers, vocab_size)
         
-        self.fusion_block = CrossAttention(dim_q=self.visual_encoder.config.hidden_size,dim_kv=ctx_out_dim, num_heads=ca_head)
-        self.temporal_block = LayerNormGRU(input_dim=self.visual_encoder.config.hidden_size + ctx_out_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
+        self.fusion_block = CrossAttention(dim_q=self.visual_encoder.model.config.hidden_size,dim_kv=ctx_out_dim, num_heads=ca_head)
+        self.temporal_block = LayerNormGRU(input_dim=self.visual_encoder.model.config.hidden_size + ctx_out_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.mlp = nn.Sequential(
             nn.Linear(seq_hidden_dim, seq_hidden_dim),
