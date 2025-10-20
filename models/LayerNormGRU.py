@@ -81,6 +81,8 @@ class LayerNormGRU(nn.Module):
 
 
     def forward(self, input: torch.Tensor, seq_lens=None):
+        device = input.device
+        seq_lens = seq_lens.to(device).long() if seq_lens is not None else None
         seq_len, batch_size, _ = input.size()
         # print("input:", input.shape)
         hx = input.new_zeros(self.num_layers, batch_size, self.hidden_dim, requires_grad=False)
@@ -95,7 +97,7 @@ class LayerNormGRU(nn.Module):
                 seq_len_mask[i, l:, :] = 0
         seq_len_mask = seq_len_mask.transpose(0, 1)
 
-        indices = (torch.cuda.LongTensor(seq_lens) - 1).unsqueeze(1).unsqueeze(0).unsqueeze(0).repeat(
+        indices = (seq_lens - 1).unsqueeze(1).unsqueeze(0).unsqueeze(0).repeat(
             [1, self.num_layers, 1, self.hidden_dim])
         h = hx
 
