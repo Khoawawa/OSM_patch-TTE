@@ -37,7 +37,7 @@ class MMVIT_TTE(torch.nn.Module):
             hiddens[i, 0] = torch.sum(hiddens[i, :lens[i]], dim=0)
         return hiddens[list(batch_size), 0]
     
-    def __forward__(self, input_, args):
+    def forward(self, input_, args):
         # input will be a dict
         # input['batches']: [B, T, C, H, W]
         # other thing for context just pass the input in
