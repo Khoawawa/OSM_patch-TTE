@@ -224,7 +224,6 @@ def load_datadoct_pre(args):
         data_config = json.load(file)[args.dataset]
         args.data_config = data_config
     transform = T.Compose([
-        T.Resize((args.data_config['patch']['img_size'], args.data_config['patch']['img_size'])),
         T.ToTensor()
     ])
     with open(os.path.join(args.absPath,args.data_config['edges_dir']), 'rb') as f:
