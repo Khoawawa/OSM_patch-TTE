@@ -231,7 +231,7 @@ def load_datadoct_pre(args):
         edgeinfo = pickle.load(f)
     with open(os.path.join(args.absPath,args.data_config['nodes_dir']), 'rb') as f:
         nodeinfo = pickle.load(f)
-    with open(os.path.join(args.absPath,args.data_config['patch']['patch_dir']), 'r') as f:
+    with open(os.path.join(args.absPath,args.data_config['patch']['patch_dir'],'patch_metadata.json'), 'r') as f:
         patch_json = json.load(f)
     grid_index = build_grid_index(patch_json, args.data_config['patch']['patch_size'])
     if "porto" in args.dataset:
