@@ -13,6 +13,8 @@ args = SimpleNamespace(
     datapath='./mydata',
     absPath='.',
     mode='test',
+    mask_rate=0.4,
+    
 )
 abspath = 'utils/data_config.json'
 
@@ -42,7 +44,7 @@ prep.info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2]
 loader,scaler_temp = load_datadict(args)
 
 data, gps = next(iter(loader['test']))
-
+print(data['patches'].shape)
 # model = ContextEncoder(8, 512, 0, 4)
 # output = model(data, args)
 # print("Output shape: ", output.shape)  # Expected output shape based on model design

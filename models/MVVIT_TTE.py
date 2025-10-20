@@ -42,7 +42,7 @@ class MMVIT_TTE(torch.nn.Module):
         # input['batches']: [B, T, C, H, W]
         # other thing for context just pass the input in
         feature = input_['links']
-        visual_input = input_.get('batches', None)  # [B, T, C, H, W]
+        visual_input = input_['patches'] # [B, T, C, H, W]
         context_input = input_
         lens = input_['lens']
         
