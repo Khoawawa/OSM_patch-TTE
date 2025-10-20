@@ -217,15 +217,16 @@ class BatchSampler:
 
 def load_datadoct_pre(args):
     global info_all
-    transform, grid_index, edgeinfo, nodeinfo, scaler, scaler2 = None, None, None, None, None
-    transform = T.Compose([
-        T.Resize((args.data_config['patch']['img_size'], args.data_config['patch']['img_size'])),
-        T.ToTensor()
-    ])
+    transform, grid_index, edgeinfo, nodeinfo, scaler, scaler2 = None, None, None, None, None, None
+    
     abspath = os.path.join(os.path.dirname(__file__), "data_config.json")
     with open(abspath) as file:
         data_config = json.load(file)[args.dataset]
         args.data_config = data_config
+    transform = T.Compose([
+        T.Resize((args.data_config['patch']['img_size'], args.data_config['patch']['img_size'])),
+        T.ToTensor()
+    ])
     with open(os.path.join(args.absPath,args.data_config['edges_dir']), 'rb') as f:
         edgeinfo = pickle.load(f)
     with open(os.path.join(args.absPath,args.data_config['nodes_dir']), 'rb') as f:
