@@ -42,15 +42,12 @@ class MMVIT_TTE(torch.nn.Module):
         # input['batches']: [B, T, C, H, W]
         # other thing for context just pass the input in
         feature = input_['links']
-        weekrep = self.weekembed(feature[:, :, 3].long())
-        daterep = self.dateembed(feature[:, :, 4].long())  # 10
-        timerep = self.timeembed(feature[:, :, 5].long())
         visual_input = input_.get('batches', None)  # [B, T, C, H, W]
         context_input = input_
         lens = input_['lens']
         
         visual_encoded = self.visual_encoder(visual_input) # [B, T, D]
-        context_encoded, loss_1 = self.context_encoder(context_input,args) # [B, seq_len, D']
+        context_encoded, loss_1, (weekrep,daterep,timerep) = self.context_encoder(context_input,args) # [B, seq_len, D']
         
         cross_attn_output = self.fusion_block(visual_encoded, context_encoded) # [B, T, D + D']
         hiddens, _ = self.temporal_block(cross_attn_output, seq_lens = lens.long())  # [B, T, hidden_dim]

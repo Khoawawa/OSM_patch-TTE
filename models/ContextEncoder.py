@@ -49,7 +49,7 @@ class ContextEncoder(nn.Module):
         timene = self.timene(timene_input)+timene_input
         features = torch.cat([feature[..., 1:3], highwayrep, gpsrep, timene], dim=-1)
         
-        return features, loss_1
+        return features, loss_1, (weekrep,daterep,timerep)
         
 if __name__ == "__main__":
     model = ContextEncoder(8, 512, 0, 4)
