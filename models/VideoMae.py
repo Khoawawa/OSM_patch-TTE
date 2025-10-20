@@ -26,7 +26,7 @@ if __name__ == "__main__":
 class ViTEncoder(nn.Module):
     def __init__(self, model="google/vit-base-patch16-224-in21k", freeze=True):
         super().__init__()
-        self.processor = AutoImageProcessor.from_pretrained(model)
+        self.processor = AutoImageProcessor.from_pretrained(model,do_rescale=False)
         self.model = AutoModel.from_pretrained(model)
         if freeze:
             for param in self.model.parameters():
@@ -36,7 +36,7 @@ class ViTEncoder(nn.Module):
         b, t, c, h, w = x.shape
         images = x.view(b*t,c,h,w)
         
-        inputs = self.processor(images=list(images), return_tensors="pt")
+        inputs = self.processor(images=list(images), return_tensors="pt",)
         outputs = self.model(**inputs)
         
         return outputs.pooler_output.view(b,t,-1)  # [B,T,D]
