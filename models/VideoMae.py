@@ -26,7 +26,7 @@ if __name__ == "__main__":
 class ViTEncoder(nn.Module):
     def __init__(self, model="google/vit-base-patch16-224-in21k", freeze=True):
         super().__init__()
-        self.processor = AutoImageProcessor.from_pretrained(model,do_rescale=False)
+        self.processor = AutoImageProcessor.from_pretrained(model,do_rescale=False,use_fast=True)
         self.model = AutoModel.from_pretrained(model)
         self.hidden_size = self.model.config.hidden_size
         if freeze:
