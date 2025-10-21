@@ -113,7 +113,7 @@ def collate_func(data, args, info_all):
         dy = mid_y - patch['center']['y']
         
         patch_data.append(transform(image))
-        off_sets.append(torch.tensor([dx, dy], dtype=torch.float32))
+        off_sets.append(torch.tensor([dx, dy], dtype=torch.float32, device=args.device))
     # now it is not a padded batch --> do padding and transformation
     ptr = 0
     max_len = lens.max()
@@ -128,10 +128,9 @@ def collate_func(data, args, info_all):
             seq_imgs.append(dummy_frame)
             seq_offsets.append(dummy_offset)
         
-        batch_patches.append(torch.stack(seq_imgs))
+        batch_patches.extend(seq_imgs)
         batch_offsets.append(torch.stack(seq_offsets))
-    
-    batch_patches = torch.stack(batch_patches)  # (B, T, C, H, W)
+    # batch_patches --> [B*T x [C,H,W]]
     batch_offsets = torch.stack(batch_offsets)  # (B, T, 2)
             
     mask = np.arange(lens.max()) < lens[:, None]
@@ -168,6 +167,8 @@ def collate_func(data, args, info_all):
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
     return {'links':torch.FloatTensor(padded),
             'patches': batch_patches,
+            'T': max_len,
+            'mask': mask,
             'offsets': batch_offsets,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 

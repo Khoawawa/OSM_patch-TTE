@@ -32,12 +32,13 @@ class ViTEncoder(nn.Module):
         if freeze:
             for param in self.model.parameters():
                 param.requires_grad = False
-    def forward(self, x):
-        # x: [B, T,C, H, W]
-        b, t, c, h, w = x.shape
-        images = x.view(b*t,c,h,w)
+    def forward(self, x, T, mask):
+        # x: [[C, H, W] x B*T]
         
-        inputs = self.processor(images=list(images), return_tensors="pt",).to(x.device)
+        b = len(x) / T
+        inputs = self.processor(images=x, return_tensors="pt",).to(x.device)
         outputs = self.model(**inputs)
         
-        return outputs.pooler_output.view(b,t,-1)  # [B,T,D]
+        vit_embeds = outputs.pooler_output.view(b,T,-1)  # [B,T,D]
+        return vit_embeds * mask.unsqueeze(-1)
+        
