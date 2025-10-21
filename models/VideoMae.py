@@ -54,7 +54,7 @@ class ResnetEncoder(nn.Module):
             return
 
         
-    def forward(self, x, lens, chunk_size=32):
+    def forward(self, x, lens, chunk_size=64):
     # x: [sum(lens), C, H, W]
         feats = []
         with torch.no_grad():
