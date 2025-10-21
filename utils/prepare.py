@@ -109,7 +109,7 @@ def collate_func(data, args, info_all):
     # now it is not a padded batch --> do padding and transformation
     ptr = 0
     max_len = lens.max()
-    print(len(batch_patches))
+    
     batch_patches = torch.stack(patch_data)
     print("NP")
     batch_offsets = []

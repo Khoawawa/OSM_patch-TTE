@@ -54,8 +54,16 @@ class ResnetEncoder(nn.Module):
             return
 
         
-    def forward(self, x, lens): # [B*T(vary), C, H, W]
-        feat = self.model(x) # [B*T, resnet_out,1, 1]
+    def forward(self, x, lens, chunk_size=32):
+    # x: [sum(lens), C, H, W]
+        feats = []
+        with torch.no_grad():
+            for i in range(0, x.size(0), chunk_size):
+                batch = x[i:i+chunk_size]
+                out = self.model(batch)  # [chunk, resnet_out, 1, 1]
+                out = out.squeeze(-1).squeeze(-1)
+                feats.append(out)
+        feat = torch.cat(feats, dim=0).to(x.device) # [B*T, resnet_out,1, 1]
         feat = feat.squeeze(-1).squeeze(-1) # [B*T, resnet_out]
         feat = self.proj(feat)
         
