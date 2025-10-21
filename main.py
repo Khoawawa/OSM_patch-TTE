@@ -8,7 +8,7 @@ import random
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-m', '--model', type=str, help='input the model name', default='MVVIT_TTE', choices=['MVVIT_TTE'])
+    parser.add_argument('-m', '--model', type=str, help='input the model name', default='MVVIT_TTE', choices=['MVVIT_TTE','Resnet_TTE'])
     parser.add_argument('-M', '--mode', type=str, default='train', help='input the process mode', choices=['train', 'resume', 'test'])
     parser.add_argument('-d', '--dataset', type=str, default='porto', help='input the dataset name', choices=['chengdu','porto'])
     parser.add_argument('-i', '--identify', type=str, help='input the specific identification information', default='')
