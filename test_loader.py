@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from models.ContextEncoder import ContextEncoder
 from models.VideoMae import ViTEncoder
 from models.MVVIT_TTE import CrossAttention
+from utils.util import to_var
 grid_index, edgeinfo, nodeinfo, scaler, scaler2 = None, None, None, None, None
 args = SimpleNamespace(
     dataset='porto',
@@ -38,16 +39,15 @@ scaler2 = StandardScaler()
 scaler2.fit([[0, 0, 0, 0]])
 scaler2.mean_ = [-8.62247695, 41.15923239, -8.62256569, 41.15929004]
 scaler2.scale_ = [0.02520552, 0.01236445, 0.02526226, 0.01242564]
-
+transform = prep.get_transform()
 grid_index = build_grid_index(patch_json, args.data_config['patch']['patch_size'])
-transform = prep.get_transform(args.data_config['patch']['img_size'],'cpu')
 prep.info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2]
 
 loader,scaler_temp = load_datadict(args)
 
-data, gps = next(iter(loader['train']))
-print(type(data['patches']))
-print(len(data['patches']))
+data, _ = next(iter(loader['train']))
+features = to_var(data, 'cpu')
+print(type(features['patches'][0]))
 # visual_model = ViTEncoder()
 # context_model = ContextEncoder(8,64,26529+1,4)
 # ca_model = CrossAttention(dim_q=visual_model.hidden_size, dim_kv=context_model.hidden_size, num_heads=8)

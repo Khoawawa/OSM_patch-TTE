@@ -16,7 +16,10 @@ from models.MVVIT_TTE import MMVIT_TTE
 
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
-
+def get_transform():
+    return T.Compose([
+        T.ToTensor(),
+    ])
 def get_global_min_bounds(patches_json):
     """
     Extract the global minimum x (longitude) and y (latitude)
@@ -47,7 +50,7 @@ def gps_mapper(gps, grid_index, minx, miny, patch_size):
     
 # mlm任务的输入link index中需要预测的值不能是本身，否则产生信息泄露，TTE_edge_new_data_end2end_pre更正为TTE_edge_new_data_end2end
 def collate_func(data, args, info_all):
-    grid_index, edgeinfo, nodeinfo, scaler, scaler2 = info_all
+    transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = []
@@ -98,7 +101,7 @@ def collate_func(data, args, info_all):
             print(f"[⚠️] Patch not found for GPS #{id_}: {gps}")
             print(f"Computed idx = {gps_to_patch_idx((gps[0]+gps[2])/2, (gps[1]+gps[3])/2, args.data_config['patch']['minx'], args.data_config['patch']['miny'], args.data_config['patch']['patch_size'])}")
             patch_data.append(dummy_frame)
-            off_sets.append(torch.tensor([dx, dy], dtype=torch.float16))        
+            off_sets.append(torch.tensor([dx, dy], dtype=torch.float32))        
         
         image_path = os.path.join(args.absPath, patch['image_path'].replace("\\", "/"))
         image = Image.open(image_path).convert('RGB')
@@ -108,8 +111,8 @@ def collate_func(data, args, info_all):
         dx = mid_x - patch['center']['x']
         dy = mid_y - patch['center']['y']
         
-        patch_data.append(image)
-        off_sets.append(torch.tensor([dx, dy], dtype=torch.float16))
+        patch_data.append(transform(image))
+        off_sets.append(torch.tensor([dx, dy], dtype=torch.float32))
     # now it is not a padded batch --> do padding and transformation
     ptr = 0
     max_len = lens.max()
@@ -219,6 +222,7 @@ def load_datadoct_pre(args):
     with open(abspath) as file:
         data_config = json.load(file)[args.dataset]
         args.data_config = data_config
+    transform = get_transform(args.data_config['patch']['img_size'])
     
     with open(os.path.join(args.absPath,args.data_config['edges_dir']), 'rb') as f:
         edgeinfo = pickle.load(f)
@@ -249,7 +253,7 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [grid_index,edgeinfo, nodeinfo, scaler, scaler2]
+    info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2]
 
 
 class Datadict(Dataset):
