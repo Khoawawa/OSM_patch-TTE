@@ -90,21 +90,13 @@ def collate_func(data, args, info_all):
     # metadata:
     #   - the distance from the middle of the patch
     #   - the angle?
-    dummy_frame = torch.zeros(3, args.data_config['patch']['img_size'], args.data_config['patch']['img_size'])
     dummy_offset = torch.zeros(2)
     
     patch_data = []
     off_sets = []
-    for id_, (patch, gps) in enumerate(patches):
-        # loading the patch
-        if patch is None:
-            print(f"[⚠️] Patch not found for GPS #{id_}: {gps}")
-            print(f"Computed idx = {gps_to_patch_idx((gps[0]+gps[2])/2, (gps[1]+gps[3])/2, args.data_config['patch']['minx'], args.data_config['patch']['miny'], args.data_config['patch']['patch_size'])}")
-            patch_data.append(dummy_frame)
-            off_sets.append(torch.tensor([dx, dy], dtype=torch.float32))        
-        
+    for patch, gps in patches:      
         image_path = os.path.join(args.absPath, patch['image_path'].replace("\\", "/"))
-        image = Image.open(image_path).convert('RGB')
+        image = Image.open(image_path).convert('L')
         # compute distance from center
         mid_x = (gps[0] + gps[2]) / 2
         mid_y = (gps[1] + gps[3]) / 2
@@ -116,20 +108,14 @@ def collate_func(data, args, info_all):
     # now it is not a padded batch --> do padding and transformation
     ptr = 0
     max_len = lens.max()
-    batch_patches = []
+    batch_patches = torch.stack(patch_data)
     batch_offsets = []
     for length in lens:
-        seq_imgs = patch_data[ptr:ptr+length]
         seq_offsets = off_sets[ptr:ptr+length]
         ptr += length
-        
-        while len(seq_imgs) < max_len:
-            seq_imgs.append(dummy_frame)
+        while length < max_len:
             seq_offsets.append(dummy_offset)
-        
-        batch_patches.extend(seq_imgs)
         batch_offsets.append(torch.stack(seq_offsets))
-    # batch_patches --> [B*T x [C,H,W]]
     batch_offsets = torch.stack(batch_offsets)  # (B, T, 2)
             
     mask = np.arange(lens.max()) < lens[:, None]
