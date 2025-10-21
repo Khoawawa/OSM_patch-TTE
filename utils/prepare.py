@@ -167,7 +167,6 @@ def collate_func(data, args, info_all):
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
     return {'links':torch.FloatTensor(padded),
             'patches': batch_patches,
-            'T': max_len,
             'mask': mask,
             'offsets': batch_offsets,
             'lens':torch.LongTensor(lens), 
