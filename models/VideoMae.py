@@ -28,6 +28,7 @@ class ViTEncoder(nn.Module):
         super().__init__()
         self.processor = AutoImageProcessor.from_pretrained(model,do_rescale=False)
         self.model = AutoModel.from_pretrained(model)
+        self.hidden_size = self.model.config.hidden_size
         if freeze:
             for param in self.model.parameters():
                 param.requires_grad = False
@@ -36,7 +37,7 @@ class ViTEncoder(nn.Module):
         b, t, c, h, w = x.shape
         images = x.view(b*t,c,h,w)
         
-        inputs = self.processor(images=list(images), return_tensors="pt",)
+        inputs = self.processor(images=list(images), return_tensors="pt",).to(x.device)
         outputs = self.model(**inputs)
         
         return outputs.pooler_output.view(b,t,-1)  # [B,T,D]

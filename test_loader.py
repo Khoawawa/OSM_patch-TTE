@@ -6,7 +6,8 @@ import json
 import pickle
 from types import SimpleNamespace
 from models.ContextEncoder import ContextEncoder
-
+from models.VideoMae import ViTEncoder
+from models.MVVIT_TTE import CrossAttention
 grid_index, edgeinfo, nodeinfo, scaler, scaler2 = None, None, None, None, None
 args = SimpleNamespace(
     dataset='porto',
@@ -44,7 +45,17 @@ prep.info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2]
 loader,scaler_temp = load_datadict(args)
 
 data, gps = next(iter(loader['test']))
-print(data['patches'].shape)
+
+visual_model = ViTEncoder()
+context_model = ContextEncoder(8,64,26529+1,4)
+ca_model = CrossAttention(dim_q=visual_model.hidden_size, dim_kv=context_model.hidden_size, num_heads=8)
+
+visual_output = visual_model(data['patches'])
+ctx_output,_,_ = context_model(data, args)
+cross_attn_output = ca_model(visual_output, ctx_output)
+print("Visual output shape: ", visual_output.shape)  # Expected: [B, T, D]
+print("Context output shape: ", ctx_output.shape)  # Expected: [B, T, D']
+print("Cross Attention output shape: ", cross_attn_output.shape)  # Expected: [B, T, D + D']
 # model = ContextEncoder(8, 512, 0, 4)
 # output = model(data, args)
 # print("Output shape: ", output.shape)  # Expected output shape based on model design

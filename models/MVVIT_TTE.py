@@ -14,17 +14,23 @@ import copy
 # then they are fed into a cross attention fusion block
 # then go into mlp to extract the time#
 class MMVIT_TTE(torch.nn.Module):
-    def __init__(self,ctx_out_dim, seq_hidden_dim, seq_layer, decoder_layer,
-                 bert_attention_heads, bert_hiden_size, pad_token_id, bert_hidden_layers, vocab_size=27300, ca_head=8):
+    def __init__(self, seq_hidden_dim, seq_layer, decoder_layer,
+                 bert_attention_heads, bert_hiden_size, pad_token_id, bert_hidden_layers, v_query=True,vocab_size=27300, ca_head=8):
         super().__init__()
         self.visual_encoder = ViTEncoder()
         self.context_encoder = ContextEncoder(bert_attention_heads, bert_hiden_size, pad_token_id, bert_hidden_layers, vocab_size)
+        self.visual_output_dim = self.visual_encoder.hidden_size
+        self.context_output_dim = self.context_encoder.hidden_size
+        if v_query:
+            self.fusion_block = CrossAttention(dim_q=self.visual_output_dim,dim_kv=self.context_output_dim, num_heads=ca_head)
+        else:
+            self.fusion_block = CrossAttention(dim_q=self.context_output_dim,dim_kv=self.visual_output_dim, num_heads=ca_head)
         
-        self.fusion_block = CrossAttention(dim_q=self.visual_encoder.model.config.hidden_size,dim_kv=ctx_out_dim, num_heads=ca_head)
-        self.temporal_block = LayerNormGRU(input_dim=self.visual_encoder.model.config.hidden_size + ctx_out_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
+        rnn_input = self.visual_output_dim if v_query else self.context_output_dim
+        self.temporal_block = LayerNormGRU(input_dim=rnn_input, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.mlp = nn.Sequential(
-            nn.Linear(seq_hidden_dim, seq_hidden_dim),
+            nn.Linear(seq_hidden_dim + 33, seq_hidden_dim),
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
@@ -45,16 +51,16 @@ class MMVIT_TTE(torch.nn.Module):
         context_input = input_
         lens = input_['lens']
         
-        visual_encoded = self.visual_encoder(visual_input) # [B, T, D]
+        visual_encoded = self.visual_encoder(visual_input) # [B, T, D = visual_encoder.config.hidden_size]
         context_encoded, loss_1, (weekrep,daterep,timerep) = self.context_encoder(context_input,args) # [B, seq_len, D']
-        
-        cross_attn_output = self.fusion_block(visual_encoded, context_encoded) # [B, T, D + D']
-        hiddens, _ = self.temporal_block(cross_attn_output, seq_lens = lens.long())  # [B, T, hidden_dim]
-        decoder = self.decoder(hiddens, lens.long()) # [B, T, hidden_dim]
-        pooled_decoder = self.pooling_sum(decoder, lens.long())  # [B, hidden_dim]
-        pooled_hidden = torch.cat([pooled_decoder, weekrep[:, 0], daterep[:, 0], timerep[:, 0]], dim=-1)
+        # context_encoded: [B, T, D' = 64 + bert_hiden_size]
+        cross_attn_output = self.fusion_block(visual_encoded, context_encoded) # [B, T, D]
+        hiddens, _ = self.temporal_block(cross_attn_output, seq_lens = lens.long())  # [B, T, seq_hidden_dim]
+        decoder = self.decoder(hiddens, lens.long()) # [B, T, seq_hidden_dim]
+        pooled_decoder = self.pooling_sum(decoder, lens.long())  # [B, seq_hidden_dim]
+        pooled_hidden = torch.cat([pooled_decoder, weekrep[:, 0], daterep[:, 0], timerep[:, 0]], dim=-1) # [B, seq_hidden_dim + 3 + 10 + 20]
         output = self.mlp(pooled_hidden)
-        output = args.scaler.inverse_transform(output)
+        output = args.scaler.inverse_transform(output) # [B, 1]
         return output, loss_1
     
 class CrossAttention(torch.nn.Module):
@@ -183,3 +189,8 @@ class Decoder(nn.Module):
         for i in range(self.N):
             x = self.layers[i](x, lens)
         return self.norm(x)
+
+
+if __name__ == "__main__":
+    model = MMVIT_TTE()
+    pass

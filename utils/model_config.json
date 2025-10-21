@@ -1,6 +1,5 @@
 {
     "MVVIT_TTE":{
-        "ctx_out_dim": 120,
         "seq_hidden_dim": 128,
         "seq_layer": 2,
         "decoder_layer": 3,

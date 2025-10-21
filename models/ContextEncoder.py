@@ -17,6 +17,7 @@ class ContextEncoder(nn.Module):
         self.dateembed = nn.Embedding(367, 10)
         self.timeembed = nn.Embedding(1441, 20)
         self.gpsrep = nn.Linear(4, 16)
+        self.offsetrep = nn.Linear(2, 8)
         self.timene_dim = 3 + 10 + 20 + bert_hiden_size
 
         self.timene = nn.Sequential(
@@ -24,8 +25,8 @@ class ContextEncoder(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(self.timene_dim, self.timene_dim)
         )
-    
-    
+        self.hidden_size = 64 + bert_hiden_size
+
     def seg_embedding(self, x):
         bert_output = self.seg_embedding_learning(input_ids=x[0], encoder_attention_mask=x[1],  labels=x[2], output_hidden_states=True)
 
@@ -35,20 +36,20 @@ class ContextEncoder(nn.Module):
         feature = inputs['links']
 
         # print("Lens: ", max(lens))
-        highwayrep = self.highwayembed(feature[:, :, 0].long())
-        weekrep = self.weekembed(feature[:, :, 3].long())
+        highwayrep = self.highwayembed(feature[:, :, 0].long()) # 5
+        weekrep = self.weekembed(feature[:, :, 3].long()) # 3
         daterep = self.dateembed(feature[:, :, 4].long())  # 10
-        timerep = self.timeembed(feature[:, :, 5].long())
-        gpsrep = self.gpsrep(feature[:, :, 6:10])
-
-        datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1)
+        timerep = self.timeembed(feature[:, :, 5].long()) # 20
+        gpsrep = self.gpsrep(feature[:, :, 6:10]) # 16
+        offsetrep = self.offsetrep(inputs['offsets']) # 8
+        datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 3 + 10 + 20 = 33
 
         loss_1, hidden_states, prediction_scores = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']])
-
+        # 
         timene_input = torch.cat([self.seg_embedding_learning.bert.embeddings.word_embeddings(inputs['rawlinks']), datetimerep], dim=-1)
         timene = self.timene(timene_input)+timene_input
-        features = torch.cat([feature[..., 1:3], highwayrep, gpsrep, timene], dim=-1)
-        
+        features = torch.cat([feature[..., 1:3], highwayrep, gpsrep, timene, offsetrep], dim=-1)
+        # 2 + 5 + 16 + (3 + 10 + 20 + bert_hiden_size) + 8 = 64 + bert_hiden_size
         return features, loss_1, (weekrep,daterep,timerep)
         
 if __name__ == "__main__":
