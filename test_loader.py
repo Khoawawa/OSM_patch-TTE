@@ -13,8 +13,9 @@ args = SimpleNamespace(
     dataset='porto',
     datapath='./mydata',
     absPath='.',
-    mode='test',
+    mode='train',
     mask_rate=0.4,
+    device='cpu'
     
 )
 abspath = 'utils/data_config.json'
@@ -39,23 +40,24 @@ scaler2.mean_ = [-8.62247695, 41.15923239, -8.62256569, 41.15929004]
 scaler2.scale_ = [0.02520552, 0.01236445, 0.02526226, 0.01242564]
 
 grid_index = build_grid_index(patch_json, args.data_config['patch']['patch_size'])
-transform = prep.get_transform(args.data_config['patch']['img_size'])
+transform = prep.get_transform(args.data_config['patch']['img_size'],'cpu')
 prep.info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2]
 
 loader,scaler_temp = load_datadict(args)
 
-data, gps = next(iter(loader['test']))
+data, gps = next(iter(loader['train']))
+print(type(data['patches']))
+print(len(data['patches']))
+# visual_model = ViTEncoder()
+# context_model = ContextEncoder(8,64,26529+1,4)
+# ca_model = CrossAttention(dim_q=visual_model.hidden_size, dim_kv=context_model.hidden_size, num_heads=8)
 
-visual_model = ViTEncoder()
-context_model = ContextEncoder(8,64,26529+1,4)
-ca_model = CrossAttention(dim_q=visual_model.hidden_size, dim_kv=context_model.hidden_size, num_heads=8)
-
-visual_output = visual_model(data['patches'])
-ctx_output,_,_ = context_model(data, args)
-cross_attn_output = ca_model(visual_output, ctx_output)
-print("Visual output shape: ", visual_output.shape)  # Expected: [B, T, D]
-print("Context output shape: ", ctx_output.shape)  # Expected: [B, T, D']
-print("Cross Attention output shape: ", cross_attn_output.shape)  # Expected: [B, T, D + D']
+# visual_output = visual_model(data['patches'])
+# ctx_output,_,_ = context_model(data, args)
+# cross_attn_output = ca_model(visual_output, ctx_output)
+# print("Visual output shape: ", visual_output.shape)  # Expected: [B, T, D]
+# print("Context output shape: ", ctx_output.shape)  # Expected: [B, T, D']
+# print("Cross Attention output shape: ", cross_attn_output.shape)  # Expected: [B, T, D + D']
 # model = ContextEncoder(8, 512, 0, 4)
 # output = model(data, args)
 # print("Output shape: ", output.shape)  # Expected output shape based on model design

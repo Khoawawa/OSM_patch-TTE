@@ -31,5 +31,5 @@ def to_var(var, device=0):
             var[key] = to_var(var[key], device)
         return var
     if isinstance(var, list):
-        var = map(lambda x: to_var(x, device), var)
+        var = list(map(lambda x: to_var(x, device), var))
         return var
