@@ -10,16 +10,17 @@ from torch.utils.data import Dataset
 from torch.utils.data.dataloader import DataLoader
 from utils.util import StandardScaler2
 from PIL import Image
-import torchvision.transforms as T 
+import torchvision.transforms as T
 from models.MVVIT_TTE import MMVIT_TTE
 
 
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
-def get_transform(img_size):
+def get_transform(img_size,device):
     return T.Compose([
         T.Resize((img_size, img_size)),
-        T.ToTensor()
+        T.ToTensor(),
+        T.Lambda(lambda x: x.to(device))
     ])
 def get_global_min_bounds(patches_json):
     """
@@ -91,8 +92,8 @@ def collate_func(data, args, info_all):
     # metadata:
     #   - the distance from the middle of the patch
     #   - the angle?
-    dummy_frame = torch.zeros(3, args.data_config['patch']['img_size'], args.data_config['patch']['img_size'])
-    dummy_offset = torch.zeros(2)
+    dummy_frame = torch.zeros(3, args.data_config['patch']['img_size'], args.data_config['patch']['img_size'], device=args.device)
+    dummy_offset = torch.zeros(2, device=args.device)
     
     patch_data = []
     off_sets = []
@@ -223,10 +224,8 @@ def load_datadoct_pre(args):
     with open(abspath) as file:
         data_config = json.load(file)[args.dataset]
         args.data_config = data_config
-    transform = T.Compose([
-        T.Resize((args.data_config['patch']['img_size'], args.data_config['patch']['img_size'])),
-        T.ToTensor()
-    ])
+    transform = get_transform(args.data_config['patch']['img_size'],args.device)
+    
     with open(os.path.join(args.absPath,args.data_config['edges_dir']), 'rb') as f:
         edgeinfo = pickle.load(f)
     with open(os.path.join(args.absPath,args.data_config['nodes_dir']), 'rb') as f:
