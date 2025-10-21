@@ -9,7 +9,7 @@
     "edges_dir": "mydata/network_porto/porto_edges_new_simplify.pkl",
     "nodes_dir": "mydata/network_porto/porto_nodes_new.pkl",
     "patch":{
-        "patch_dir": "mydata/patches",
+        "patch_dir": "mydata/patches_112x112",
         "patch_size": 0.01,
         "minx": -8.6886988,
         "miny": 41.1406333,

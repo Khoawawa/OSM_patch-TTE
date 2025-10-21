@@ -18,7 +18,6 @@ highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'tr
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
 def get_transform(img_size,device):
     return T.Compose([
-        T.Resize((img_size, img_size)),
         T.ToTensor(),
         T.Lambda(lambda x: x.to(device))
     ])
