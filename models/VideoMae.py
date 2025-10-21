@@ -35,7 +35,7 @@ class ViTEncoder(nn.Module):
     def forward(self, x, T, mask,device):
         # x: [[C, H, W] x B*T]
         
-        b = len(x) / T
+        b = int(len(x) / T)
         inputs = self.processor(images=x, return_tensors="pt",).to(device)
         outputs = self.model(**inputs)
         

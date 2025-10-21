@@ -1,7 +1,7 @@
 import os
 import torch
 from torch.autograd import Variable
-
+import numpy as np
 
 class StandardScaler2:
     def __init__(self, mean, std):
@@ -24,6 +24,9 @@ def to_var(var, device=0):
         if torch.cuda.is_available():
             var = var.to(device)
         return var
+    if isinstance(var,np.ndarray):
+        var_tensor = torch.from_numpy(var)
+        return to_var(var_tensor,device)
     if isinstance(var, int) or isinstance(var, float):
         return var
     if isinstance(var, dict):
