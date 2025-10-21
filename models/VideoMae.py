@@ -24,7 +24,7 @@ if __name__ == "__main__":
     print(out.shape)  # Expected: [2, num_patches, D]
 
 class ViTEncoder(nn.Module):
-    def __init__(self, model="google/vit-base-patch16-224-in21k", freeze=True):
+    def __init__(self, model="facebook/deit-tiny-patch16-224", freeze=True):
         super().__init__()
         self.processor = AutoImageProcessor.from_pretrained(model,use_fast=True)
         self.model = AutoModel.from_pretrained(model)
@@ -32,11 +32,11 @@ class ViTEncoder(nn.Module):
         if freeze:
             for param in self.model.parameters():
                 param.requires_grad = False
-    def forward(self, x, T, mask):
+    def forward(self, x, T, mask,device):
         # x: [[C, H, W] x B*T]
         
         b = len(x) / T
-        inputs = self.processor(images=x, return_tensors="pt",).to(x.device)
+        inputs = self.processor(images=x, return_tensors="pt",).to(device)
         outputs = self.model(**inputs)
         
         vit_embeds = outputs.pooler_output.view(b,T,-1)  # [B,T,D]
