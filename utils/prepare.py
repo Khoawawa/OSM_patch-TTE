@@ -222,7 +222,7 @@ def load_datadoct_pre(args):
     with open(abspath) as file:
         data_config = json.load(file)[args.dataset]
         args.data_config = data_config
-    transform = get_transform(args.data_config['patch']['img_size'])
+    transform = get_transform()
     
     with open(os.path.join(args.absPath,args.data_config['edges_dir']), 'rb') as f:
         edgeinfo = pickle.load(f)
