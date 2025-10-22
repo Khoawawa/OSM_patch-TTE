@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 import math
 import copy
+batch_first = False
 # from a abstract view point 
 # there is 2 stream
 # - visual stream
@@ -56,8 +57,10 @@ class MMVIT_TTE(torch.nn.Module):
         context_encoded, loss_1, (weekrep,daterep,timerep) = self.context_encoder(context_input,args) # [B, seq_len, D']
         # context_encoded: [B, T, D' = 64 + bert_hiden_size]
         cross_attn_output = self.fusion_block(visual_encoded, context_encoded) # [B, T, D]
-        hiddens, _ = self.temporal_block(cross_attn_output, seq_lens = lens.long())  # [B, T, seq_hidden_dim]
-        decoder = self.decoder(hiddens, lens.long()) # [B, T, seq_hidden_dim]
+        cross_attn_output = cross_attn_output if batch_first else cross_attn_output.transpose(0,1).contiguous() # [T,B,D]  
+        hiddens, _ = self.temporal_block(cross_attn_output, seq_lens = lens.long())  # [T,B, seq_hidden_dim]
+        decoder = self.decoder(hiddens, lens.long()) # [T,B, seq_hidden_dim]
+        decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # [B, T, seq_hidden_dim]
         pooled_decoder = self.pooling_sum(decoder, lens.long())  # [B, seq_hidden_dim]
         pooled_hidden = torch.cat([pooled_decoder, weekrep[:, 0], daterep[:, 0], timerep[:, 0]], dim=-1) # [B, seq_hidden_dim + 3 + 10 + 20]
         output = self.mlp(pooled_hidden)
