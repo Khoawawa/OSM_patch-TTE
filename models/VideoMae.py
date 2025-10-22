@@ -3,6 +3,7 @@ import torch.nn as nn
 from transformers import VideoMAEModel, VideoMAEImageProcessor
 from transformers import AutoModel, AutoImageProcessor
 import numpy as np
+import timm
 class VideoMAEBackbone(nn.Module):
     def __init__(self, model_name='MCG-NJU/videomae-base-finetuned-kinetics'):
         super().__init__()
@@ -24,7 +25,7 @@ if __name__ == "__main__":
     print(out.shape)  # Expected: [2, num_patches, D]
 
 class ViTEncoder(nn.Module):
-    def __init__(self, model="WinKawaks/vit-tiny-patch16-224", freeze=True):
+    def __init__(self, model="google/vit-base-patch16-224", freeze=True):
         super().__init__()
         self.processor = AutoImageProcessor.from_pretrained(model,use_fast=True)
         self.model = AutoModel.from_pretrained(model)
