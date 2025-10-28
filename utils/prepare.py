@@ -61,7 +61,6 @@ def get_unique_patches(patches):
 
     return unique_patches, link_mapper
     
-# mlm任务的输入link index中需要预测的值不能是本身，否则产生信息泄露，TTE_edge_new_data_end2end_pre更正为TTE_edge_new_data_end2end
 def collate_func(data, args, info_all):
     transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
@@ -106,43 +105,43 @@ def collate_func(data, args, info_all):
         image = Image.open(patch['image_path']).convert('RGB')
         patch_data.append(transform(image)) # [tensor(3, 112,112)]
     patch_data = torch.stack(patch_data, dim=0) # (unique_patch_num, 3, 112, 112)  
-    
-    original_idx = np.arange(len(patches))
-    placement = []
-    ptr = 0
-    max_len = lens.max()
-    for length in lens:
-        indices = original_idx[ptr:ptr+length].tolist()
-        indices += [-1] * (max_len - length)
-        placement.append(indices)
-        ptr += length
-    placement_tensor = torch.tensor(placement, dtype=torch.long)
-    
-    unique_idx = torch.tensor([link_mapper[i] for i in range(len(patches))], dtype=torch.long)
-    placement_unique = torch.full_like(unique_idx, fill_value=-1)
-    mask = placement_tensor != -1
-    placement_unique[mask] = unique_idx[placement_tensor[mask]]
-    
-    dummy_offset = torch.zeros(2)
-    off_sets = []
-    # offset padding
+    # offset calculate
+    offsets = []
     for patch, gps in patches:  
         # compute distance from center
         mid_x = (gps[0] + gps[2]) / 2
         mid_y = (gps[1] + gps[3]) / 2
         dx = mid_x - patch['center']['x']
         dy = mid_y - patch['center']['y']
-        off_sets.append(torch.tensor([dx, dy], dtype=torch.float32))
+        offsets.append(torch.tensor([dx, dy], dtype=torch.float32))
+    offset_tensor = torch.stack(offsets)
     
-    ptr = 0
+    original_idx = np.arange(len(patches))
+    placement = []
     batch_offsets = []
-    for length in lens:
-        seq_offsets = off_sets[ptr:ptr+length]
-        ptr += length
-        while length < max_len:
-            seq_offsets.append(dummy_offset)
-        batch_offsets.append(torch.stack(seq_offsets))
+    ptr = 0
+    max_len = lens.max()
+    
+    dummy_offset = torch.zeros(2, dtype=torch.float32)
+    
+    for L in lens:
+        # patch placement
+        indices = original_idx[ptr:ptr+L].tolist()
+        indices += [-1] * (max_len - L)
+        placement.append(indices)
+        # offsets
+        seq = offset_tensor[ptr:ptr+L]
+        pad = dummy_offset.repeat(max_len - L, 1)
+        batch_offsets.append(torch.cat([seq, pad], dim=0))
+        
+        ptr += L
+    placement_tensor = torch.tensor(placement, dtype=torch.long)
     batch_offsets = torch.stack(batch_offsets)  # (B, T, 2)
+    
+    unique_idx = torch.tensor([link_mapper[i] for i in range(len(patches))], dtype=torch.long)
+    placement_unique = torch.full_like(unique_idx, fill_value=-1)
+    placement_mask = placement_tensor != -1
+    placement_unique[placement_mask] = unique_idx[placement_tensor[placement_mask]]
             
     mask = np.arange(lens.max()) < lens[:, None]
 
@@ -176,7 +175,7 @@ def collate_func(data, args, info_all):
     linkindex[mask] = np.concatenate(sub_input_tmp)
     mask_encoder = np.zeros(mask.shape, dtype=np.int16)
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
-    return {'links':torch.FloatTensor(padded),
+    return {'links':torch.from_numpy(padded),
             'patches': patch_data,
             'placement': placement_unique,
             'mask': mask,
