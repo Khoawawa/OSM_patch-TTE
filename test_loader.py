@@ -46,6 +46,7 @@ prep.info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2]
 loader,scaler_temp = load_datadict(args)
 
 data, _ = next(iter(loader['train']))
+to_var(data,'cpu')
 # visual_model = ViTEncoder()
 # context_model = ContextEncoder(8,64,26529+1,4)
 # ca_model = CrossAttention(dim_q=visual_model.hidden_size, dim_kv=context_model.hidden_size, num_heads=8)

@@ -54,26 +54,22 @@ class ResnetEncoder(nn.Module):
             return
 
         
-    def forward(self, x, lens, chunk_size=64):
-    # x: [sum(lens), C, H, W]
-        feats = []
-        with torch.no_grad():
-            for i in range(0, x.size(0), chunk_size):
-                batch = x[i:i+chunk_size]
-                out = self.model(batch)  # [chunk, resnet_out, 1, 1]
-                out = out.squeeze(-1).squeeze(-1)
-                feats.append(out)
-        feat = torch.cat(feats, dim=0).to(x.device) # [B*T, resnet_out,1, 1]
-        feat = feat.squeeze(-1).squeeze(-1) # [B*T, resnet_out]
-        feat = self.proj(feat)
+    def forward(self, patches: nn.Tensor, placement: nn.Tensor, chunk_size=64):
+    # x: (unique_patch_num, C, H, W)
+    # mapper: dict {original_index: unique_index}
+    # original_placement: (B, T, 1) where 1 is the original index, with padding as -1
+        out = self.model(patches).squeeze(-1).squeeze(-1) # (unique_patch_num, resnet_out)
+        out: nn.Tensor = self.proj(out) # (unique_patch_num, output_dim)
+        # map back to original index
+        B, T, _ = placement.shape
+        D = out.shape[-1]
         
-        feats = []
-        start = 0
-        for len_ in lens:
-            feats.append(feat[start: start + len_])
-            start += len_
-
-        padded_feats = nn.utils.rnn.pad_sequence(feats, batch_first=True)
-        return  padded_feats
+        mask = placement != -1
+        idx = placement.clamp(min=0).long()
+        
+        out = torch.zeros(B,T,D, device=out.device, dtype=out.dtype)
+        out[mask] = out[idx[mask]]
+        return  out
 if __name__ == "__main__":
-    pass
+    model = ResnetEncoder(512)
+    print(model)

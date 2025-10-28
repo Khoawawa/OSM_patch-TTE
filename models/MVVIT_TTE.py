@@ -49,10 +49,11 @@ class Resnet_TTE(torch.nn.Module):
         # input['patches']: [B, T, C, H, W]
         # other thing for context just pass the input in
         visual_input = input_['patches'] # [B, T, C, H, W]
+        placement = input_['placement']
         context_input = input_
         lens = input_['lens']
         
-        visual_encoded = self.visual_encoder(visual_input,lens) # [B, T, D = visual_encoder.config.hidden_size]
+        visual_encoded = self.visual_encoder(visual_input,placement) # [B, T, D = visual_encoder.config.hidden_size]
         context_encoded, loss_1, (weekrep,daterep,timerep) = self.context_encoder(context_input,args) # [B, seq_len, D']
         # context_encoded: [B, T, D' = 64 + bert_hiden_size]
         cross_attn_output = self.fusion_block(visual_encoded, context_encoded) # [B, T, D]
