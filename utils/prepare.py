@@ -59,7 +59,7 @@ def get_unique_patches(patches):
             unique_patches.append(patch)
         link_mapper[i] = seen[pid]
 
-    return unique_patches, link_mappera   
+    return unique_patches, link_mapper 
 def collate_func(data, args, info_all):
     transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
