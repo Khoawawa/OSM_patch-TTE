@@ -142,7 +142,7 @@ def collate_func(data, args, info_all):
     placement_mask = placement_tensor != -1 # (B, T)
     valid_links_indices = placement_tensor[placement_mask]
     placement_unique[valid_links_indices] = unique_idx[valid_links_indices]
-    
+    print(placement_unique.shape)
     mask = np.arange(lens.max()) < lens[:, None]
 
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
