@@ -82,9 +82,9 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                         predictions.append(output.cpu().detach().numpy())
 
                     running_loss[phase] += loss.item() * truth_data.size(0)
-                    if step % 1000 == 0:
-                        torch.cuda.empty_cache()
-                        gc.collect()
+                    # if step % 1000 == 0:
+                    #     torch.cuda.empty_cache()
+                    #     gc.collect()
 
                 torch.cuda.empty_cache()
 
