@@ -54,7 +54,7 @@ class ResnetEncoder(nn.Module):
             return
 
         
-    def forward(self, patches: , placement, chunk_size=64):
+    def forward(self, patches, placement, chunk_size=64):
     # x: (unique_patch_num, C, H, W)
     # mapper: dict {original_index: unique_index}
     # original_placement: (B, T, 1) where 1 is the original index, with padding as -1
