@@ -52,7 +52,7 @@ def get_unique_patches(patches):
     seen = {}
     link_mapper = {}
     for i, (patch,_) in enumerate(patches):
-        pid = patch["id"]
+        pid = patch["patch_id"]
         if pid not in seen:
             idx = len(unique_patches)
             seen[pid] = idx
