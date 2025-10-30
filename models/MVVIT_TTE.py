@@ -16,9 +16,9 @@ batch_first = False
 # then go into mlp to extract the time#
 class Resnet_TTE(torch.nn.Module):
     def __init__(self, visual_out_dim, seq_hidden_dim, seq_layer, decoder_layer,
-                 bert_attention_heads, bert_hiden_size, pad_token_id, bert_hidden_layers, v_query=True,vocab_size=27300, ca_head=8):
+                 bert_attention_heads, bert_hiden_size, pad_token_id, bert_hidden_layers,resnet_unfreeze_layer, v_query=True,vocab_size=27300, ca_head=8):
         super().__init__()
-        self.visual_encoder = ResnetEncoder(visual_out_dim)
+        self.visual_encoder = ResnetEncoder(visual_out_dim,unfreeze_layer=resnet_unfreeze_layer)
         self.context_encoder = ContextEncoder(bert_attention_heads, bert_hiden_size, pad_token_id, bert_hidden_layers, vocab_size)
         self.visual_output_dim = visual_out_dim
         self.context_output_dim = self.context_encoder.hidden_size
