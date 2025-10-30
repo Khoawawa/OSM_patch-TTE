@@ -50,8 +50,12 @@ class ResnetEncoder(nn.Module):
     def __freeze_layer(self, unfreeze_layer):
         for param in self.model.parameters():
             param.requires_grad = False
-        if unfreeze_layer == 0:
+        if unfreeze_layer <= 0:
             return
+        layers_to_unfreeze = list(self.spatial_model.children())[-unfreeze_layer:]
+        for layer in layers_to_unfreeze:
+            for param in layer.parameters():
+                param.requires_grad = True
 
         
     def forward(self, patches, patch_ids,valid_mask):
