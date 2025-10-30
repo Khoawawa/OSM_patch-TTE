@@ -102,11 +102,13 @@ class MMVIT_TTE(torch.nn.Module):
         # input['patches']: [B, T, C, H, W]
         # other thing for context just pass the input in
         visual_input = input_['patches'] # [B, T, C, H, W]
+        patches_ids = input_['patch_ids']
+        valid_mask = input_['valid_mask']
         context_input = input_
         lens = input_['lens']
         T = lens.max().item()
         
-        visual_encoded = self.visual_encoder(visual_input,T,input_['mask'],args.device) # [B, T, D = visual_encoder.config.hidden_size]
+        visual_encoded = self.visual_encoder(visual_input,patches_ids,valid_mask) # [B, T, D = visual_encoder.config.hidden_size]
         context_encoded, loss_1, (weekrep,daterep,timerep) = self.context_encoder(context_input,args) # [B, seq_len, D']
         # context_encoded: [B, T, D' = 64 + bert_hiden_size]
         cross_attn_output = self.fusion_block(visual_encoded, context_encoded) # [B, T, D]

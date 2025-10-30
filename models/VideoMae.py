@@ -54,22 +54,21 @@ class ResnetEncoder(nn.Module):
             return
 
         
-    def forward(self, patches, placement, chunk_size=64):
+    def forward(self, patches, patch_ids,valid_mask):
     # x: (unique_patch_num, C, H, W)
     # mapper: dict {original_index: unique_index}
     # original_placement: (B, T, 1) where 1 is the original index, with padding as -1
-        out = self.model(patches).squeeze(-1).squeeze(-1) # (unique_patch_num, resnet_out)
-        out: nn.Tensor = self.proj(out) # (unique_patch_num, output_dim)
+        out = self.model(patches).flatten(1) # (unique_patch_num, resnet_out)
+        out= self.proj(out) # (unique_patch_num, output_dim)
         # map back to original index
-        B, T, _ = placement.shape
+        B, T = valid_mask.shape
         D = out.shape[-1]
         
-        mask = placement != -1
-        idx = placement.clamp(min=0).long()
-        
-        out = torch.zeros(B,T,D, device=out.device, dtype=out.dtype)
-        out[mask] = out[idx[mask]]
-        return  out
+        gathered_patch_embs = out[patch_ids] # (total_link, resnet_out)
+        output_grid = torch.zeros(B, T, D, device=out.device, dtype=out.dtype)
+        output_grid[valid_mask] = gathered_patch_embs # (total_link, resnet_out) -> (B, T, resnet_out)
+
+        return  output_grid
 if __name__ == "__main__":
     model = ResnetEncoder(512)
     print(model)
