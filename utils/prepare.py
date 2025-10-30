@@ -59,8 +59,7 @@ def get_unique_patches(patches):
             unique_patches.append(patch)
         link_mapper[i] = seen[pid]
 
-    return unique_patches, link_mapper
-    
+    return unique_patches, link_mappera   
 def collate_func(data, args, info_all):
     transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
@@ -135,14 +134,15 @@ def collate_func(data, args, info_all):
         batch_offsets.append(torch.cat([seq, pad], dim=0))
         
         ptr += L
-    placement_tensor = torch.tensor(placement, dtype=torch.long)
+    placement_tensor = torch.tensor(placement, dtype=torch.long) # (B, T)
     batch_offsets = torch.stack(batch_offsets)  # (B, T, 2)
     
-    unique_idx = torch.tensor([link_mapper[i] for i in range(len(patches))], dtype=torch.long)
-    placement_unique = torch.full_like(unique_idx, fill_value=-1)
-    placement_mask = placement_tensor != -1
-    placement_unique[placement_mask] = unique_idx[placement_tensor[placement_mask]]
-            
+    unique_idx = torch.tensor([link_mapper[i] for i in range(len(patches))], dtype=torch.long) # (total_link,)
+    placement_unique = torch.full_like(unique_idx, fill_value=-1) # (total_link,)
+    placement_mask = placement_tensor != -1 # (B, T)
+    valid_links_indices = placement_tensor[placement_mask]
+    placement_unique[valid_links_indices] = unique_idx[valid_links_indices]
+    
     mask = np.arange(lens.max()) < lens[:, None]
 
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
