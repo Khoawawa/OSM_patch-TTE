@@ -1,7 +1,7 @@
 import torch
 from models.VideoMae import ViTEncoder, ResnetEncoder
-from models.ContextEncoder import ContextEncoder
-from models.LayerNormGRU import LayerNormGRU
+from models.base.ContextEncoder import ContextEncoder
+from models.base.LayerNormGRU import LayerNormGRU
 import torch.nn.functional as F
 import torch.nn as nn
 import math
@@ -14,6 +14,19 @@ batch_first = False
 # every stream have their own block 
 # then they are fed into a cross attention fusion block
 # then go into mlp to extract the time#
+class Vit_TTE(torch.nn.Module):
+    def __init__(self, visual_out_dim, ):
+        super().__init__()
+        self.visual_encoder = ...   
+        self.context_encoder = ...
+        self.temporal_block = LayerNormGRU(input_dim=..., hidden_dim=..., num_layers=...)
+        self.mlp = Decoder(d_model=..., N=...)
+        self.mlp = nn.Sequential(
+            nn.Linear(..., ...),
+            nn.GELU(),
+            nn.Linear(..., 1)
+        )
+        
 class Resnet_TTE(torch.nn.Module):
     def __init__(self, visual_out_dim, seq_hidden_dim, seq_layer, decoder_layer,
                  bert_attention_heads, bert_hiden_size, pad_token_id, bert_hidden_layers,resnet_unfreeze_layer, v_query=True,vocab_size=27300, ca_head=8):

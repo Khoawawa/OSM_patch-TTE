@@ -5,7 +5,7 @@ import os
 import json
 import pickle
 from types import SimpleNamespace
-from models.ContextEncoder import ContextEncoder
+from models.base.ContextEncoder import ContextEncoder
 from models.VideoMae import ViTEncoder
 from models.MVVIT_TTE import CrossAttention
 from utils.util import to_var
