@@ -4,6 +4,7 @@ from transformers import CLIPProcessor, CLIPVisionModel
 from torchvision.models import resnet50
 from models.base.CrossAttention import CrossAttention
 import torchvision
+batch_first=False
 class BE_Resnet_CA_Module(nn.Module):
     def __init__(self,adapter_hidden_dim=512,num_heads=8):
         super().__init__()
@@ -14,7 +15,7 @@ class BE_Resnet_CA_Module(nn.Module):
         
         kv_dim = self.diff_embs.out_features + self.gps_embs.out_features
         
-        self.ca = CrossAttention(dim_q=self.resnet.output_dim,dim_kv=kv_dim, num_heads=num_heads)
+        self.ca = CrossAttention(dim_q=self.resnet.output_dim,dim_kv=kv_dim, num_heads=num_heads,batch_first=batch_first)
         self.ca_heads = num_heads
     def forward(self, patches, patch_ids, valid_mask, gps, diff):
         patch_embs = self.resnet(patches, patch_ids, valid_mask) # (B, T, resnet_out)
@@ -22,9 +23,9 @@ class BE_Resnet_CA_Module(nn.Module):
         gps_embs = self.gps_embs(gps) # (B, T, 16)
         # cross attention
         # prepare query
-        query_seq = patch_embs.transpose(0, 1) # (T, B, resnet_out)
+        query_seq = patch_embs if batch_first else patch_embs.transpose(0,1).contiguous() # (T, B, resnet_out)
         kv_embs = torch.cat([diff_embs, gps_embs], dim=-1) # (B, T, 24)
-        kv_seq = kv_embs.transpose(0, 1) # (T, B, 24)
+        kv_seq = kv_embs if batch_first else kv_embs.transpose(0,1).contiguous() # (T, B, 24)
         # prepare mask
         B, T = valid_mask.shape
         mask = ~valid_mask # (B,T) # 1 for invalid, 0 for valid
@@ -33,7 +34,7 @@ class BE_Resnet_CA_Module(nn.Module):
         mask = mask.unsqueeze(2).expand(B*self.ca_heads, T, T) # (B*num_heads, T, T)
                 
         out = self.ca(query_seq, kv_seq, mask) # (T, B, resnet_out)
-        out = out.transpose(0, 1) # (B, T, resnet_out)
+        out = out if batch_first else out.transpose(0,1).contiguous() # (B, T, resnet_out)
         return out, gps_embs # (B, T, resnet_out), (B, T, 16) for later
 class BE_ResnetEncoder(nn.Module):
     def __init__(self,adapter_hidden_dim=512):
