@@ -24,8 +24,13 @@ class BE_Resnet_CA_Module(nn.Module):
         # cross attention
         # prepare query
         query_seq = patch_embs if batch_first else patch_embs.transpose(0,1).contiguous() # (T, B, resnet_out)
+        if torch.isnan(query_seq).any() or torch.isinf(query_seq).any():
+            print("NaN or Inf detected in query_seq")
+        # prepare kv
         kv_embs = torch.cat([diff_embs, gps_embs], dim=-1) # (B, T, 24)
         kv_seq = kv_embs if batch_first else kv_embs.transpose(0,1).contiguous() # (T, B, 24)
+        if torch.isnan(kv_seq).any() or torch.isinf(kv_seq).any():
+            print("NaN or Inf detected in kv_seq")
         # prepare mask
         B, T = valid_mask.shape
         mask = ~valid_mask # (B,T) # 1 for invalid, 0 for valid
