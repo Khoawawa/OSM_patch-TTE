@@ -27,11 +27,11 @@ class BE_Resnet_CA_Module(nn.Module):
         kv_seq = kv_embs.transpose(0, 1) # (T, B, 24)
         # prepare mask
         B, T = valid_mask.shape
-        mask = ~valid_mask.transpose(0, 1) # (T, B) # 1 for invalid, 0 for valid
-        mask = mask.reshape(T*B)
-        mask = mask.unsqueeze(0).expand(self.ca_heads,-1) # (T, B) -> (num_heads, T*B)
-        
-        
+        mask = ~valid_mask # (B,T) # 1 for invalid, 0 for valid
+        mask = mask.unsqueeze(1).repeat(1, self.ca_heads, 1) # (B, num_heads, T)
+        mask = mask.reshape(B*self.ca_heads, T) # (B*num_heads, T)
+        mask = mask.unsqueeze(2).expand(B*self.ca_heads, T, T) # (B*num_heads, T, T)
+                
         out = self.ca(query_seq, kv_seq, mask) # (T, B, resnet_out)
         out = out.transpose(0, 1) # (B, T, resnet_out)
         return out, gps_embs # (B, T, resnet_out), (B, T, 16) for later
