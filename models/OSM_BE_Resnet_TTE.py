@@ -58,7 +58,7 @@ class OSM_BER_TTE(torch.nn.Module):
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
         pooled_decoder = self.pooling_sum(decoder, input_['lens'].long()) # (B,seq_hidden_dim)
         # add back the weekrep, daterep, timerep for making model learn time of important events
-        pooled_decoder = torch.cat([pooled_decoder, weekrep, daterep, timerep], dim=-1) # (B,seq_hidden_dim + 33)
+        pooled_decoder = torch.cat([pooled_decoder, weekrep[:,0], daterep[:,0], timerep[:,0]], dim=-1) # (B,seq_hidden_dim + 33)
         output = self.mlp(pooled_decoder) # (B,1)
         return output, loss_1
 
