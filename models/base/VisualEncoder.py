@@ -41,7 +41,7 @@ class BE_ResnetEncoder(nn.Module):
         weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1
         self.resnet = resnet50(weights=weights)
         # get output dim of resnet
-        self.output_dim = self.resnet.classifier.in_features
+        self.output_dim = self.resnet.fc.in_features
         self.resnet = nn.Sequential(*list(self.resnet.children())[:-1]) # remove classifier
         # freezing
         for param in self.resnet.parameters():
