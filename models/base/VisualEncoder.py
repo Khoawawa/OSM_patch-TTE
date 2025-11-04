@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 from transformers import CLIPProcessor, CLIPVisionModel
-from reben_publication.BigEarthNetv2_0_ImageClassifier import BigEarthNetv2_0_ImageClassifier
-
+from torchvision.models import resnet50
 from models.base.CrossAttention import CrossAttention
 class BE_Resnet_CA_Module(nn.Module):
     def __init__(self,adapter_hidden_dim=512,num_heads=8):
@@ -38,10 +37,14 @@ class BE_Resnet_CA_Module(nn.Module):
 class BE_ResnetEncoder(nn.Module):
     def __init__(self,adapter_hidden_dim=512):
         super().__init__()
-        self.resnet = BigEarthNetv2_0_ImageClassifier.from_pretrained("BIFOLD-BigEarthNetv2-0/resnet50-s2-v0.2.0")
+        self.resnet = resnet50(weights=resnet50.Weights.IMAGENET1K_V1)
         # get output dim of resnet
         self.output_dim = self.resnet.classifier.in_features
         self.resnet = nn.Sequential(*list(self.resnet.children())[:-1]) # remove classifier
+        # freezing
+        for param in self.resnet.parameters():
+            param.requires_grad = False
+        # adapter
         self.adapter = nn.Sequential(
             nn.Linear(self.output_dim, adapter_hidden_dim),
             nn.GELU(),

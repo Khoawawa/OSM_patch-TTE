@@ -22,7 +22,7 @@ node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_ju
 def get_transform():
     return T.Compose([
         T.ToTensor(),
-        
+        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 def get_global_min_bounds(patches_json):
     """
