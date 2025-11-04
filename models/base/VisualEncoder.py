@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 from transformers import CLIPProcessor, CLIPVisionModel
-from torchvision.models import resnet50
+from torchvision.models import resnet50,
 from models.base.CrossAttention import CrossAttention
+
 class BE_Resnet_CA_Module(nn.Module):
     def __init__(self,adapter_hidden_dim=512,num_heads=8):
         super().__init__()
@@ -37,7 +38,8 @@ class BE_Resnet_CA_Module(nn.Module):
 class BE_ResnetEncoder(nn.Module):
     def __init__(self,adapter_hidden_dim=512):
         super().__init__()
-        self.resnet = resnet50(weights=resnet50.Weights.IMAGENET1K_V1)
+        weights = models.ResNet50_Weights.IMAGENET1K_V1
+        self.resnet = resnet50(weights=weights)
         # get output dim of resnet
         self.output_dim = self.resnet.classifier.in_features
         self.resnet = nn.Sequential(*list(self.resnet.children())[:-1]) # remove classifier
