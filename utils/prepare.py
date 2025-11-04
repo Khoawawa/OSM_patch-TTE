@@ -47,7 +47,9 @@ def gps_to_patch_idx(x, y, minx, miny, patch_size):
 def gps_mapper(gps, grid_index, minx, miny, patch_size):
     x_s, y_s, _,_ = gps
     i, j = gps_to_patch_idx(x_s, y_s, minx, miny, patch_size)
-    return grid_index.get((i, j)), gps
+    patch = grid_index.get((i, j))
+    patch['image_path'].replace('\\', '/')
+    return patch, gps
 def get_unique_patches(patches):
     unique_patches= []
     seen = {}
