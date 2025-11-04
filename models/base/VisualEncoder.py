@@ -14,7 +14,7 @@ class BE_Resnet_CA_Module(nn.Module):
         
         kv_dim = self.diff_embs.out_features + self.gps_embs.out_features
         
-        self.ca = CrossAttention(dim_q=adapter_hidden_dim,dim_kv=kv_dim, num_heads=num_heads)
+        self.ca = CrossAttention(dim_q=self.resnet.output_dim,dim_kv=kv_dim, num_heads=num_heads)
         self.ca_heads = num_heads
     def forward(self, patches, patch_ids, valid_mask, gps, diff):
         patch_embs = self.resnet(patches, patch_ids, valid_mask) # (B, T, resnet_out)
