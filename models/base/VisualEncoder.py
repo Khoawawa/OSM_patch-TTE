@@ -28,6 +28,8 @@ class BE_Resnet_CA_Module(nn.Module):
             print("NaN or Inf detected in query_seq")
         # prepare kv
         kv_embs = torch.cat([diff_embs, gps_embs], dim=-1) # (B, T, 24)
+        if torch.isnan(kv_embs).any() or torch.isinf(kv_embs).any():
+            print("NaN or Inf detected in kv_embs")
         kv_seq = kv_embs if batch_first else kv_embs.transpose(0,1).contiguous() # (T, B, 24)
         if torch.isnan(kv_seq).any() or torch.isinf(kv_seq).any():
             print("NaN or Inf detected in kv_seq")
