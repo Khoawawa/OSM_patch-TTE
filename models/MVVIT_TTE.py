@@ -2,6 +2,7 @@ import torch
 from models.VideoMae import ViTEncoder, ResnetEncoder
 from models.base.ContextEncoder import ContextEncoder
 from models.base.LayerNormGRU import LayerNormGRU
+from models.base.VisualEncoder import CLIP_CA_Module
 import torch.nn.functional as F
 import torch.nn as nn
 import math
@@ -14,18 +15,51 @@ batch_first = False
 # every stream have their own block 
 # then they are fed into a cross attention fusion block
 # then go into mlp to extract the time#
-class Vit_TTE(torch.nn.Module):
-    def __init__(self, visual_out_dim, ):
+class CLIP_TTE(torch.nn.Module):
+    def __init__(self, visual_out_dim, ca_heads,
+                 seq_hidden_dim, seq_layer,
+                 decoder_layer,
+                 bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
         super().__init__()
-        self.visual_encoder = ...   
-        self.context_encoder = ...
-        self.temporal_block = LayerNormGRU(input_dim=..., hidden_dim=..., num_layers=...)
-        self.mlp = Decoder(d_model=..., N=...)
+        self.visual_encoder = CLIP_CA_Module(visual_out_dim,ca_heads) 
+        self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
+        self.temporal_block = LayerNormGRU(input_dim=visual_out_dim + self.context_encoder.hidden_size + 16, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
+        self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.mlp = nn.Sequential(
-            nn.Linear(..., ...),
+            nn.Linear(seq_hidden_dim + 33, seq_hidden_dim),
             nn.GELU(),
-            nn.Linear(..., 1)
+            nn.Linear(seq_hidden_dim, 1)
         )
+    def pooling_sum(self, hiddens, lens):
+        lens = lens.to(hiddens.device)
+        lens = torch.autograd.Variable(torch.unsqueeze(lens, dim=1), requires_grad=False)
+        batch_size = range(hiddens.shape[0])
+        for i in batch_size:
+            hiddens[i, 0] = torch.sum(hiddens[i, :lens[i]], dim=0)
+        return hiddens[list(batch_size), 0]
+    
+    def forward(self, input_, args):
+        # visual input
+        patches = input_['patches']
+        patch_ids = input_['patch_ids']
+        valid_mask = input_['valid_mask']
+        gps = input_['links'][:,:,6:10].long()
+        diff = input_['offsets'].long()
+        # visual output
+        visual_output, gps_embeds = self.visual_encoder(patches,patch_ids,valid_mask,gps,diff)
+        # context output
+        ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
+        # temporal sendoff
+        representation = torch.cat([visual_output, ctx_output, gps_embeds], dim=-1) # (B,T,Vis + Ctx + 16)
+        representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Vis + Ctx + 16)
+        hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
+        decoder = self.decoder(hiddens, input_['lens'].long()) # (T,B,seq_hidden_dim)
+        decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
+        pooled_decoder = self.pooling_sum(decoder, input_['lens'].long()) # (B,seq_hidden_dim)
+        # add back the weekrep, daterep, timerep for making model learn time of important events
+        pooled_decoder = torch.cat([pooled_decoder, weekrep, daterep, timerep], dim=-1)
+        output = self.mlp(pooled_decoder) # (B,1)
+        return output, loss_1
         
 class Resnet_TTE(torch.nn.Module):
     def __init__(self, visual_out_dim, seq_hidden_dim, seq_layer, decoder_layer,

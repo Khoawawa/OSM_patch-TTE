@@ -13,6 +13,7 @@ from PIL import Image
 import torchvision.transforms as T
 from models.MVVIT_TTE import MMVIT_TTE
 from models.MVVIT_TTE import Resnet_TTE
+from models.OSM_BE_Resnet_TTE import OSM_BER_TTE
 
 
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}
@@ -318,6 +319,9 @@ def create_model(args):
         return MMVIT_TTE(**model_config)
     elif args.model == "Resnet_TTE":
         return Resnet_TTE(**model_config)
+    elif args.model == "OSM_BER_TTE":
+        return OSM_BER_TTE(**model_config)
+        
 
 def create_main_loss(loss_bert,loss, args):
     beta = args.beta

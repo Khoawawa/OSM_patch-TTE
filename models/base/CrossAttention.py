@@ -1,4 +1,5 @@
 import torch
+
 class CrossAttention(torch.nn.Module):
     def __init__(self, dim_q, dim_kv, num_heads=8):
         super().__init__()

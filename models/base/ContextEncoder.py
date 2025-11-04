@@ -17,13 +17,12 @@ class ContextEncoder(nn.Module):
         self.dateembed = nn.Embedding(367, 10)
         self.timeembed = nn.Embedding(1441, 20)
         self.timene_dim = 3 + 10 + 20 + bert_hiden_size
-
         self.timene = nn.Sequential(
             nn.Linear(self.timene_dim, self.timene_dim),
             nn.LeakyReLU(),
             nn.Linear(self.timene_dim, self.timene_dim)
         )
-        self.hidden_size = 64 + bert_hiden_size
+        self.hidden_size = 2 + 5 + self.timene_dim
 
     def seg_embedding(self, x):
         bert_output = self.seg_embedding_learning(input_ids=x[0], encoder_attention_mask=x[1],  labels=x[2], output_hidden_states=True)
