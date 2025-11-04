@@ -12,8 +12,6 @@ from torch.utils.data.dataloader import DataLoader
 from utils.util import StandardScaler2
 from PIL import Image
 import torchvision.transforms as T
-from models.MVVIT_TTE import MMVIT_TTE
-from models.MVVIT_TTE import Resnet_TTE
 from models.OSM_BE_Resnet_TTE import OSM_BER_TTE
 
 
@@ -321,11 +319,7 @@ def create_model(args):
         model_config = json.load(file)[args.model]
     args.model_config = model_config
     model_config['pad_token_id'] = args.data_config['edges'] + 1
-    if args.model == "MVVIT_TTE":
-        return MMVIT_TTE(**model_config)
-    elif args.model == "Resnet_TTE":
-        return Resnet_TTE(**model_config)
-    elif args.model == "OSM_BER_TTE":
+    if args.model == "OSM_BER_TTE":
         return OSM_BER_TTE(**model_config)
         
 
