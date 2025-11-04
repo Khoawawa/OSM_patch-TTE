@@ -6,8 +6,8 @@ class CrossAttention(torch.nn.Module):
         self.attn = torch.nn.MultiheadAttention(embed_dim=dim_q, num_heads=num_heads, batch_first=True)
         self.kv_projection = torch.nn.Linear(dim_kv, dim_q)
         
-    def forward(self, visual_feat, context_feat):
+    def forward(self, visual_feat, context_feat, attn_mask=None):
         # implement cross attention mechanism
         context_proj = self.kv_projection(context_feat)
-        fused_feat, _ = self.attn(visual_feat, context_proj, context_proj)
+        fused_feat, _ = self.attn(visual_feat, context_proj, context_proj, attn_mask=attn_mask)
         return fused_feat

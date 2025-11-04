@@ -15,13 +15,25 @@ class BE_Resnet_CA_Module(nn.Module):
         kv_dim = self.diff_embs.out_features + self.gps_embs.out_features
         
         self.ca = CrossAttention(dim_q=adapter_hidden_dim,dim_kv=kv_dim, num_heads=num_heads)
+        self.ca_num_heads = num_heads
     def forward(self, patches, patch_ids, valid_mask, gps, diff):
         patch_embs = self.resnet(patches, patch_ids, valid_mask) # (B, T, resnet_out)
         diff_embs = self.diff_embs(diff) # (B, T, 8)
         gps_embs = self.gps_embs(gps) # (B, T, 16)
         # cross attention
+        # prepare query
+        query_seq = patch_embs.transpose(0, 1) # (T, B, resnet_out)
         kv_embs = torch.cat([diff_embs, gps_embs], dim=-1) # (B, T, 24)
-        out = self.ca(patch_embs, kv_embs) # (B, T, resnet_out)
+        kv_seq = kv_embs.transpose(0, 1) # (T, B, 24)
+        # prepare mask
+        B, T = valid_mask.shape
+        mask = ~valid_mask.transpose(0, 1) # (T, B) # 1 for invalid, 0 for valid
+        mask = mask.reshape(T*B)
+        mask = mask.unsqueeze(0).expand(self.ca_num_head,-1) # (T, B) -> (num_heads, T*B)
+        
+        
+        out = self.ca(query_seq, kv_seq, mask) # (T, B, resnet_out)
+        out = out.transpose(0, 1) # (B, T, resnet_out)
         return out, gps_embs # (B, T, resnet_out), (B, T, 16) for later
 class BE_ResnetEncoder(nn.Module):
     def __init__(self,adapter_hidden_dim=512):
@@ -39,6 +51,7 @@ class BE_ResnetEncoder(nn.Module):
         # patches: (U, C, H, W)
         # patch_ids: (total_link,)
         # valid_mask: (B, T)
+        patches = patches.float() / 255.0
         out = self.resnet(patches).flatten(1) # (U, resnet_out)
         out = self.adapter(out) # (U, resnet_out)
         B, T = valid_mask.shape

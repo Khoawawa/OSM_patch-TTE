@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 
+import math
 import numpy as np
 import torch
 from sklearn.preprocessing import StandardScaler
@@ -107,13 +108,17 @@ def collate_func(data, args, info_all):
     patch_data = torch.stack(patch_data, dim=0) # (unique_patch_num, 3, 112, 112)  
     # offset calculate
     offsets = []
+    patch_size = args.data_config['patch']['patch_size']
     for patch, gps in patches:  
         # compute distance from center
         mid_x = (gps[0] + gps[2]) / 2
         mid_y = (gps[1] + gps[3]) / 2
         dx = mid_x - patch['center']['x']
         dy = mid_y - patch['center']['y']
-        offsets.append(torch.tensor([dx, dy], dtype=torch.float32))
+        # normalize to scale [0, 1] --> min max normalization
+        normalized_dx = dx * math.sqrt(2) / patch_size
+        normalized_dy = dy * math.sqrt(2) / patch_size
+        offsets.append(torch.tensor([normalized_dx, normalized_dy], dtype=torch.float32))
     offset_tensor = torch.stack(offsets)
     
     original_idx = np.arange(len(patches))
