@@ -7,7 +7,6 @@ import pickle
 from types import SimpleNamespace
 from models.base.ContextEncoder import ContextEncoder
 from models.VideoMae import ViTEncoder
-from models.MVVIT_TTE import CrossAttention
 from utils.util import to_var
 grid_index, edgeinfo, nodeinfo, scaler, scaler2 = None, None, None, None, None
 args = SimpleNamespace(

@@ -44,8 +44,8 @@ class OSM_BER_TTE(torch.nn.Module):
         patches = input_['patches']
         patch_ids = input_['patch_ids']
         valid_mask = input_['valid_mask']
-        gps = input_['links'][:,:,6:10].long()
-        diff = input_['offsets'].long()
+        gps = input_['links'][:,:,6:10]
+        diff = input_['offsets']
         # visual output
         visual_output, gps_embeds = self.visual_encoder(patches,patch_ids,valid_mask,gps,diff) # (B, T, resnet_out), (B, T, 16)
         # context output
