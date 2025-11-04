@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from transformers import CLIPProcessor, CLIPVisionModel
-from torchvision.models import resnet50,
+from torchvision.models import resnet50
 from models.base.CrossAttention import CrossAttention
 
 class BE_Resnet_CA_Module(nn.Module):
