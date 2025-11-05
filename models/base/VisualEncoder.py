@@ -30,8 +30,8 @@ class BE_Resnet_CA_Module(nn.Module):
         # prepare mask
         B, T = valid_mask.shape
         
-        attn_mask = torch.full((T,T), False, device=query_seq.device,dtype=torch.bool)
-        attn_mask = attn_mask.fill_diagonal_(True)
+        attn_mask = torch.full((T,T), True, device=query_seq.device,dtype=torch.bool)
+        attn_mask = attn_mask.fill_diagonal_(False)
         attn_mask = attn_mask.unsqueeze(0) # (1, T, T)
         attn_mask = attn_mask.repeat(B * self.ca_heads, 1, 1) # (B, T, T)
         
