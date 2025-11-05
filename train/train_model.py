@@ -65,18 +65,17 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     targets.append(truth_data.numpy())
                     truth_data = to_var(truth_data, args.device)
                     with torch.set_grad_enabled(phase == 'train'):
-                        output, loss_1 = model(features, args)                        
+                        output= model(features, args)                        
                         loss_2 = loss_func(truth=truth_data, predict=output)
-                        loss = create_main_loss(loss_1,loss_2,args)
+                        loss = loss_2
                         
                         if phase == 'train':    
                             optimizer.zero_grad()
                             loss.backward()
                             optimizer.step()
-                    desc = f"loss1: {loss_1.item()}, loss2: {loss_2.item()}"
+                            
                     tqdm_loader.set_description(
                         f'{phase} epoch: {epoch}, {phase} loss: {(running_loss[phase] / steps) :.8f}, '
-                        + desc
                     )
                     with torch.no_grad():
                         predictions.append(output.cpu().detach().numpy())

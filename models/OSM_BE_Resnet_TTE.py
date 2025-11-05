@@ -28,7 +28,7 @@ class OSM_BER_TTE(torch.nn.Module):
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.mlp = nn.Sequential(
             nn.Linear(seq_hidden_dim + 33, seq_hidden_dim),
-            nn.GELU(),
+            nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
     def pooling_sum(self, hiddens, lens):
@@ -49,7 +49,7 @@ class OSM_BER_TTE(torch.nn.Module):
         # visual output
         visual_output, gps_embeds = self.visual_encoder(patches,patch_ids,valid_mask,gps,diff) # (B, T, resnet_out), (B, T, 16)
         # context output
-        ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
+        ctx_output,(weekrep,daterep,timerep) = self.context_encoder(input_, args)
         # temporal sendoff
         representation = torch.cat([visual_output, ctx_output, gps_embeds], dim=-1) # (B,T,Vis + Ctx + 16)
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx + 16)
@@ -60,7 +60,7 @@ class OSM_BER_TTE(torch.nn.Module):
         # add back the weekrep, daterep, timerep for making model learn time of important events
         pooled_decoder = torch.cat([pooled_decoder, weekrep[:,0], daterep[:,0], timerep[:,0]], dim=-1) # (B,seq_hidden_dim + 33)
         output = self.mlp(pooled_decoder) # (B,1)
-        return output, loss_1
+        return output
 
 class Norm(nn.Module):
     def __init__(self, d_model, eps=1e-6):
