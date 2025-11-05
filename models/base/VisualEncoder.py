@@ -24,28 +24,27 @@ class BE_Resnet_CA_Module(nn.Module):
         # cross attention
         # prepare query
         query_seq = patch_embs if batch_first else patch_embs.transpose(0,1).contiguous() # (T, B, resnet_out)
+        query_seq = query_seq * valid_mask.unsqueeze(-1)
         # prepare kv
         kv_embs = torch.cat([diff_embs, gps_embs], dim=-1) # (B, T, 24)
         kv_seq = kv_embs if batch_first else kv_embs.transpose(0,1).contiguous() # (T, B, 24)
+        kv_seq = kv_seq * valid_mask.unsqueeze(-1)
         # prepare mask
         B, T = valid_mask.shape
         
         attn_mask = torch.full((T,T), True, device=query_seq.device,dtype=torch.bool)
         attn_mask = attn_mask.fill_diagonal_(False) # (T, T)
         mask_sum = (~attn_mask).sum(dim=-1)
-        print(mask_sum)
         key_padding_mask = ~valid_mask # (B, T) 
-        print(attn_mask.shape, key_padding_mask.shape)
-        print(attn_mask[0:3,0:3])
         out = self.ca(query_seq, kv_seq, attn_mask=attn_mask,key_padding_mask=key_padding_mask) # (T, B, resnet_out)
         out = out if batch_first else out.transpose(0,1).contiguous() # (B, T, resnet_out)
-        out = out * valid_mask.unsqueeze(-1) # (B, T, resnet_out)
+        # out = torch.nan_to_num(out, nan=0.0) # (B, T, resnet_out)
         if torch.isnan(out).any(): 
             print("NaN detected in output")
         if torch.isinf(out).any():
             print("Inf detected in output")
         exit(0)
-        return out, gps_embs # (B, T, resnet_out), (B, T, 16) for later
+        return out, gps_embs # (B, T, resnet_out), (B, T, 16)
 class BE_ResnetEncoder(nn.Module):
     def __init__(self,adapter_hidden_dim=512):
         super().__init__()
