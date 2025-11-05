@@ -34,7 +34,8 @@ class BE_Resnet_CA_Module(nn.Module):
         attn_mask = attn_mask.fill_diagonal_(False) # (T, T)
         
         key_padding_mask = ~valid_mask # (B, T) 
-        
+        print(attn_mask.shape, key_padding_mask.shape)
+        print(attn_mask[0:3,0:3])
         out = self.ca(query_seq, kv_seq, attn_mask=attn_mask,key_padding_mask=key_padding_mask) # (T, B, resnet_out)
         out = out if batch_first else out.transpose(0,1).contiguous() # (B, T, resnet_out)
         out = out * valid_mask.unsqueeze(-1) # (B, T, resnet_out)
