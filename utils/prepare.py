@@ -155,32 +155,6 @@ def collate_func(data, args, info_all):
     con_links[:, 1:3] = scaler.transform(con_links[:, 1:3])
     con_links[:, 6:10] = scaler2.transform(con_links[:, 6:10])
     padded[mask] = con_links
-    rawlinks = np.full(mask.shape, fill_value=args.data_config['edges'] + 1, dtype=np.int16)
-    rawlinks[mask] = np.concatenate(linkids)
-
-    def random_mask(tokens: np.array, rate: float):
-        replaces = np.where(np.random.random(len(tokens)) <= rate)[0]
-        labels = np.full(len(tokens),dtype=np.int16, fill_value=-100)
-        tokens = tokens.copy()
-
-        labels[replaces] = tokens[replaces]
-        tokens[replaces] = np.asarray([args.data_config['edges'] + 1] * len(replaces))   # 此处直接赋值会改变dataset原始值，应该考虑采用深拷贝复制一份新数组再更改
-        return labels, tokens
-
-
-    mask_label_tmp = []
-    sub_input_tmp = []
-    for k in linkids:
-        tmp1, tmp2 = random_mask(k, rate=args.mask_rate)
-        mask_label_tmp.append(tmp1)
-        sub_input_tmp.append(tmp2)
-    mask_label = np.full(mask.shape, dtype=np.int16, fill_value=-100)
-    mask_label[mask] = np.concatenate(mask_label_tmp)
-
-    linkindex = np.full(mask.shape, fill_value=args.data_config['edges'] + 1, dtype=np.int16)
-    linkindex[mask] = np.concatenate(sub_input_tmp)
-    mask_encoder = np.zeros(mask.shape, dtype=np.int16)
-    mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
     return {'links':torch.from_numpy(padded),
             'patches': patch_data,
             'patch_ids': patch_ids,
@@ -188,11 +162,7 @@ def collate_func(data, args, info_all):
             'mask': mask,
             'offsets': batch_offsets,
             'lens':torch.LongTensor(lens), 
-            'inds': inds, 
-            'mask_label': torch.LongTensor(mask_label),
-            "linkindex":torch.LongTensor(linkindex), 
-            'rawlinks': torch.LongTensor(rawlinks),
-            'encoder_attention_mask': torch.LongTensor(mask_encoder)
+            'inds': inds
             }, time
 
 class BatchSampler:
