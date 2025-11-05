@@ -320,7 +320,6 @@ def create_model(args):
     with open(absPath) as file:
         model_config = json.load(file)[args.model]
     args.model_config = model_config
-    model_config['pad_token_id'] = args.data_config['edges'] + 1
     if args.model == "OSM_BER_TTE":
         return OSM_BER_TTE(**model_config)
         

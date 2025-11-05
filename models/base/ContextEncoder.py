@@ -3,8 +3,7 @@ import torch.nn as nn
 
 
 class ContextEncoder(nn.Module):
-    def __init__(self,
-                 bert_attention_heads, bert_hiden_size, pad_token_id, bert_hidden_layers, vocab_size=27300):
+    def __init__(self):
         super().__init__()
 
         self.highwayembed = nn.Embedding(15, 5, padding_idx=0)

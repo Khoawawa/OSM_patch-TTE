@@ -18,12 +18,11 @@ batch_first = False
 class OSM_BER_TTE(torch.nn.Module):
     def __init__(self, adapter_hidden_dim, ca_heads,
                  seq_hidden_dim, seq_layer,
-                 decoder_layer,
-                 bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
+                 decoder_layer):
         super().__init__()
         self.visual_encoder = BE_Resnet_CA_Module(adapter_hidden_dim,ca_heads)
         visual_out_dim = self.visual_encoder.resnet.output_dim # 2048 
-        self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
+        self.context_encoder = ContextEncoder()
         self.temporal_block = LayerNormGRU(input_dim=visual_out_dim + self.context_encoder.hidden_size + 16, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.mlp = nn.Sequential(
