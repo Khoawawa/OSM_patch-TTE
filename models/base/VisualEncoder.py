@@ -38,8 +38,10 @@ class BE_Resnet_CA_Module(nn.Module):
         assert not torch.isnan(mask.float()).any(), "NaN in mask"        
         out = self.ca(query_seq, kv_seq, mask, ~valid_mask) # (T, B, resnet_out)
         out = out if batch_first else out.transpose(0,1).contiguous() # (B, T, resnet_out)
-        if torch.isnan(out).any() or torch.isinf(out).any():
-            print("NaN or Inf detected in output")
+        if torch.isnan(out).any(): 
+            print("NaN detected in output")
+        if torch.isinf(out).any():
+            print("Inf detected in output")
         exit(1)
         return out, gps_embs # (B, T, resnet_out), (B, T, 16) for later
 class BE_ResnetEncoder(nn.Module):
