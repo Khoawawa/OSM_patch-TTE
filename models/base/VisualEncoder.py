@@ -32,7 +32,8 @@ class BE_Resnet_CA_Module(nn.Module):
         
         attn_mask = torch.full((T,T), True, device=query_seq.device,dtype=torch.bool)
         attn_mask = attn_mask.fill_diagonal_(False) # (T, T)
-        
+        mask_sum = (~attn_mask).sum(dim=-1)
+        print(mask_sum)
         key_padding_mask = ~valid_mask # (B, T) 
         print(attn_mask.shape, key_padding_mask.shape)
         print(attn_mask[0:3,0:3])
