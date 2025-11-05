@@ -9,11 +9,11 @@
     "edges_dir": "mydata/network_porto/porto_edges_new_simplify.pkl",
     "nodes_dir": "mydata/network_porto/porto_nodes_new.pkl",
     "patch":{
-        "patch_dir": "mydata/patches_0.005_112",
-        "patch_size": 0.005,
+        "patch_dir": "mydata/patches_0.01_224",
+        "patch_size": 0.01,
         "minx": -8.6886988,
         "miny": 41.1406333,
-        "img_size": 112
+        "img_size": 224
     },
     "gps_range": [41.1406333, -8.6886988, 41.1858412, -8.5559061]
   }
