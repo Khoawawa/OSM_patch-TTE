@@ -39,11 +39,15 @@ class BE_Resnet_CA_Module(nn.Module):
         out = out if batch_first else out.transpose(0,1).contiguous() # (B, T, resnet_out)
         # out = torch.nan_to_num(out, nan=0.0) # (B, T, resnet_out)
         out = out * valid_mask.unsqueeze(-1)
+        combined_mask = attn_mask.unsqueeze(0) | key_padding_mask.unsqueeze(1)
+        bad_rows = combined_mask.all(dim=-1)  # (B, T)
+        if bad_rows.any():
+            print("⚠️ Some queries have all positions masked:", bad_rows.nonzero())
         if torch.isnan(out).any(): 
             print("NaN detected in output")
         if torch.isinf(out).any():
             print("Inf detected in output")
-        # exit(0)
+        exit(0)
         return out, gps_embs # (B, T, resnet_out), (B, T, 16)
 class BE_ResnetEncoder(nn.Module):
     def __init__(self,adapter_hidden_dim=512):
