@@ -36,7 +36,7 @@ class BE_Resnet_CA_Module(nn.Module):
         assert not torch.isnan(query_seq).any(), "NaN in query_seq"
         assert not torch.isnan(kv_seq).any(), "NaN in kv_seq"
         assert not torch.isnan(mask.float()).any(), "NaN in mask"        
-        out = self.ca(query_seq, kv_seq, mask, ~valid_mask) # (T, B, resnet_out)
+        out = self.ca(query_seq, kv_seq,valid_mask=~valid_mask) # (T, B, resnet_out)
         out = out if batch_first else out.transpose(0,1).contiguous() # (B, T, resnet_out)
         if torch.isnan(out).any(): 
             print("NaN detected in output")
