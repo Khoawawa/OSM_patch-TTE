@@ -29,14 +29,15 @@ class BE_Resnet_CA_Module(nn.Module):
         kv_seq = kv_embs if batch_first else kv_embs.transpose(0,1).contiguous() # (T, B, 24)
         # prepare mask
         B, T = valid_mask.shape
-        mask = ~valid_mask # (B,T) # 1 for invalid, 0 for valid
-        mask = mask.unsqueeze(1).repeat(1, self.ca_heads, 1) # (B, num_heads, T)
-        mask = mask.reshape(B*self.ca_heads, T) # (B*num_heads, T)
-        mask = mask.unsqueeze(2).expand(B*self.ca_heads, T, T) # (B*num_heads, T, T)
-        assert not torch.isnan(query_seq).any(), "NaN in query_seq"
-        assert not torch.isnan(kv_seq).any(), "NaN in kv_seq"
-        assert not torch.isnan(mask.float()).any(), "NaN in mask"        
-        out = self.ca(query_seq, kv_seq,valid_mask=~valid_mask) # (T, B, resnet_out)
+        
+        attn_mask = torch.full((T,T), float('-inf'), device=query_seq.device)
+        attn_mask = attn_mask.fill_diagonal_(0)
+        attn_mask = attn_mask.unsqueeze(0) # (1, T, T)
+        attn_mask = attn_mask.repeat(B * self.ca_heads, 1, 1) # (B, T, T)
+        
+        key_padding_mask = ~valid_mask # (B, T) 
+        
+        out = self.ca(query_seq, kv_seq,attn_mask=attn_mask,key_padding_mask=key_padding_mask) # (T, B, resnet_out)
         out = out if batch_first else out.transpose(0,1).contiguous() # (B, T, resnet_out)
         if torch.isnan(out).any(): 
             print("NaN detected in output")
