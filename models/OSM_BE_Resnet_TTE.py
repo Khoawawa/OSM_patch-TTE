@@ -1,5 +1,4 @@
 import torch
-from models.VideoMae import ViTEncoder, ResnetEncoder
 from models.base.ContextEncoder import ContextEncoder
 from models.base.LayerNormGRU import LayerNormGRU
 from models.base.VisualEncoder import BE_Resnet_CA_Module
