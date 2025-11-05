@@ -33,11 +33,10 @@ class BE_Resnet_CA_Module(nn.Module):
         mask = mask.unsqueeze(1).repeat(1, self.ca_heads, 1) # (B, num_heads, T)
         mask = mask.reshape(B*self.ca_heads, T) # (B*num_heads, T)
         mask = mask.unsqueeze(2).expand(B*self.ca_heads, T, T) # (B*num_heads, T, T)
-        
         assert not torch.isnan(query_seq).any(), "NaN in query_seq"
         assert not torch.isnan(kv_seq).any(), "NaN in kv_seq"
         assert not torch.isnan(mask.float()).any(), "NaN in mask"        
-        out = self.ca(query_seq, kv_seq, mask) # (T, B, resnet_out)
+        out = self.ca(query_seq, kv_seq, mask, ~valid_mask) # (T, B, resnet_out)
         out = out if batch_first else out.transpose(0,1).contiguous() # (B, T, resnet_out)
         if torch.isnan(out).any() or torch.isinf(out).any():
             print("NaN or Inf detected in output")
