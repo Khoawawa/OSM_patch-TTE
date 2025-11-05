@@ -38,6 +38,7 @@ class BE_Resnet_CA_Module(nn.Module):
         out = self.ca(query_seq, kv_seq, attn_mask=attn_mask,key_padding_mask=key_padding_mask) # (T, B, resnet_out)
         out = out if batch_first else out.transpose(0,1).contiguous() # (B, T, resnet_out)
         # out = torch.nan_to_num(out, nan=0.0) # (B, T, resnet_out)
+        out = out * valid_mask.unsqueeze(-1)
         if torch.isnan(out).any(): 
             print("NaN detected in output")
         if torch.isinf(out).any():
