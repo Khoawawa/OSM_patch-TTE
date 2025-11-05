@@ -43,7 +43,7 @@ class BE_Resnet_CA_Module(nn.Module):
             print("NaN detected in output")
         if torch.isinf(out).any():
             print("Inf detected in output")
-        exit(0)
+        # exit(0)
         return out, gps_embs # (B, T, resnet_out), (B, T, 16)
 class BE_ResnetEncoder(nn.Module):
     def __init__(self,adapter_hidden_dim=512):
