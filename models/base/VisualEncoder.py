@@ -24,21 +24,17 @@ class BE_Resnet_CA_Module(nn.Module):
         # cross attention
         # prepare query
         query_seq = patch_embs if batch_first else patch_embs.transpose(0,1).contiguous() # (T, B, resnet_out)
-        if torch.isnan(query_seq).any() or torch.isinf(query_seq).any():
-            print("NaN or Inf detected in query_seq")
         # prepare kv
         kv_embs = torch.cat([diff_embs, gps_embs], dim=-1) # (B, T, 24)
-        if torch.isnan(kv_embs).any() or torch.isinf(kv_embs).any():
-            print("NaN or Inf detected in kv_embs")
         kv_seq = kv_embs if batch_first else kv_embs.transpose(0,1).contiguous() # (T, B, 24)
-        if torch.isnan(kv_seq).any() or torch.isinf(kv_seq).any():
-            print("NaN or Inf detected in kv_seq")
         # prepare mask
         B, T = valid_mask.shape
         mask = ~valid_mask # (B,T) # 1 for invalid, 0 for valid
         mask = mask.unsqueeze(1).repeat(1, self.ca_heads, 1) # (B, num_heads, T)
         mask = mask.reshape(B*self.ca_heads, T) # (B*num_heads, T)
         mask = mask.unsqueeze(2).expand(B*self.ca_heads, T, T) # (B*num_heads, T, T)
+        print(mask.shape)
+        print(mask.dtype)
                 
         out = self.ca(query_seq, kv_seq, mask) # (T, B, resnet_out)
         out = out if batch_first else out.transpose(0,1).contiguous() # (B, T, resnet_out)
