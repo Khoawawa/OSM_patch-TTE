@@ -28,7 +28,7 @@ class OSM_BER_TTE(torch.nn.Module):
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.mlp = nn.Sequential(
             nn.Linear(seq_hidden_dim + 33, seq_hidden_dim),
-            nn.GELU(),
+            nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
     def pooling_sum(self, hiddens, lens):

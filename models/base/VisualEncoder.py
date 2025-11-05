@@ -57,7 +57,7 @@ class BE_ResnetEncoder(nn.Module):
         # adapter
         self.adapter = nn.Sequential(
             nn.Linear(self.output_dim, adapter_hidden_dim),
-            nn.GELU(),
+            nn.LeakyReLU(),
             nn.Linear(adapter_hidden_dim, self.output_dim)
         )
     def forward(self, patches, patch_ids, valid_mask):
