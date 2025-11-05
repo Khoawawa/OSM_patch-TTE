@@ -17,7 +17,7 @@ class ContextEncoder(nn.Module):
             nn.Linear(self.timene_dim, self.timene_dim)
         )
         self.hidden_size = 2 + 5 + self.timene_dim
-    def forward(self, inputs, args):
+    def forward(self, inputs):
         feature = inputs['links']
 
         # print("Lens: ", max(lens))

@@ -48,7 +48,7 @@ class OSM_BER_TTE(torch.nn.Module):
         # visual output
         visual_output, gps_embeds = self.visual_encoder(patches,patch_ids,valid_mask,gps,diff) # (B, T, resnet_out), (B, T, 16)
         # context output
-        ctx_output,(weekrep,daterep,timerep) = self.context_encoder(input_, args)
+        ctx_output,(weekrep,daterep,timerep) = self.context_encoder(input_)
         # temporal sendoff
         representation = torch.cat([visual_output, ctx_output, gps_embeds], dim=-1) # (B,T,Vis + Ctx + 16)
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx + 16)
