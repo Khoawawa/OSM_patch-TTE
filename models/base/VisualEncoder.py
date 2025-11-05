@@ -34,7 +34,6 @@ class BE_Resnet_CA_Module(nn.Module):
         
         attn_mask = torch.full((T,T), True, device=query_seq.device,dtype=torch.bool)
         attn_mask = attn_mask.fill_diagonal_(False) # (T, T)
-        mask_sum = (~attn_mask).sum(dim=-1)
         key_padding_mask = ~valid_mask # (B, T) 
         out = self.ca(query_seq, kv_seq, attn_mask=attn_mask,key_padding_mask=key_padding_mask) # (T, B, resnet_out)
         out = out if batch_first else out.transpose(0,1).contiguous() # (B, T, resnet_out)
