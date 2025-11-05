@@ -6,7 +6,7 @@ class LayerNormCA(torch.nn.Module):
         self.ln = torch.nn.LayerNorm(dim_q)
     def forward(self, visual_feat, context_feat, attn_mask=None,key_padding_mask=None):
         # implement cross attention mechanism
-        fused_feat,_ = self.ca(visual_feat, context_feat,attn_mask=attn_mask,key_padding_mask=key_padding_mask)
+        fused_feat = self.ca(visual_feat, context_feat,attn_mask=attn_mask,key_padding_mask=key_padding_mask)
         return self.ln(fused_feat)
 class CrossAttention(torch.nn.Module):
     def __init__(self, dim_q, dim_kv, num_heads=8,batch_first=True):
