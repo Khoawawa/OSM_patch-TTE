@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from transformers import CLIPProcessor, CLIPVisionModel
 from torchvision.models import resnet50
-from models.base.CrossAttention import CrossAttention
+from models.base.CrossAttention import LayerNormCA
 import torchvision
 batch_first=True
 class BE_Resnet_CA_Module(nn.Module):
@@ -15,7 +15,7 @@ class BE_Resnet_CA_Module(nn.Module):
         
         kv_dim = self.diff_embs.out_features + self.gps_embs.out_features
         
-        self.ca = CrossAttention(dim_q=self.resnet.output_dim,dim_kv=kv_dim, num_heads=num_heads,batch_first=batch_first)
+        self.ca = LayerNormCA(dim_q=self.resnet.output_dim,dim_kv=kv_dim, num_heads=num_heads,batch_first=batch_first)
         self.ca_heads = num_heads
     def forward(self, patches, patch_ids, valid_mask, gps, diff):
         patch_embs = self.resnet(patches, patch_ids, valid_mask) # (B, T, resnet_out)
