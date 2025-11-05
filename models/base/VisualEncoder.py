@@ -4,7 +4,7 @@ from transformers import CLIPProcessor, CLIPVisionModel
 from torchvision.models import resnet50
 from models.base.CrossAttention import CrossAttention
 import torchvision
-batch_first=False
+batch_first=True
 class BE_Resnet_CA_Module(nn.Module):
     def __init__(self,adapter_hidden_dim=512,num_heads=8):
         super().__init__()
@@ -34,8 +34,6 @@ class BE_Resnet_CA_Module(nn.Module):
         mask = mask.reshape(B*self.ca_heads, T) # (B*num_heads, T)
         mask = mask.unsqueeze(2).expand(B*self.ca_heads, T, T) # (B*num_heads, T, T)
         
-        print(mask.shape)
-        print(mask.dtype)
         assert not torch.isnan(query_seq).any(), "NaN in query_seq"
         assert not torch.isnan(kv_seq).any(), "NaN in kv_seq"
         assert not torch.isnan(mask.float()).any(), "NaN in mask"        
