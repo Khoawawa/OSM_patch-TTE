@@ -38,9 +38,9 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
     save_dict, best_mae = {'state_dict': copy.deepcopy(model.state_dict()),
                            'epoch': 0
                            }, 10000    
-    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer_R, mode='min', factor=.2, patience=2,
+    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=.2, patience=2,
     #                                                  threshold=1e-2, threshold_mode='rel', min_lr=1e-7)
-
+    scaler = torch.amp.GradScaler()
     try:
         patiance = 0
         for epoch in range(start_epoch + 1, num_epochs):
@@ -65,14 +65,16 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     targets.append(truth_data.numpy())
                     truth_data = to_var(truth_data, args.device)
                     with torch.set_grad_enabled(phase == 'train'):
-                        output, loss_1 = model(features, args)                        
-                        loss_2 = loss_func(truth=truth_data, predict=output)
-                        loss = create_main_loss(loss_1,loss_2,args)
+                        with torch.amp.autocast(args.device):
+                            output, loss_1 = model(features, args)                        
+                            loss_2 = loss_func(truth=truth_data, predict=output)
+                            loss = create_main_loss(loss_1,loss_2,args)
                         
                         if phase == 'train':    
                             optimizer.zero_grad()
-                            loss.backward()
-                            optimizer.step()
+                            scaler.scale(loss).backward()
+                            scaler.step(optimizer)
+                            scaler.update()
                     desc = f"loss1: {loss_1.item()}, loss2: {loss_2.item()}"
                     tqdm_loader.set_description(
                         f'{phase} epoch: {epoch}, {phase} loss: {(running_loss[phase] / steps) :.8f}, '
@@ -87,7 +89,8 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     #     gc.collect()
 
                 torch.cuda.empty_cache()
-
+                gc.collect()
+                    
                 predictions = np.concatenate(predictions).copy()
                 targets = np.concatenate(targets).copy()
                 
