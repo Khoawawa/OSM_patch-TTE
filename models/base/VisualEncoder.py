@@ -34,15 +34,10 @@ class BE_Resnet_CA_Module(nn.Module):
         
         attn_mask = torch.full((T,T), True, device=query_seq.device,dtype=torch.bool)
         attn_mask = attn_mask.fill_diagonal_(False) # (T, T)
-        key_padding_mask = ~valid_mask # (B, T) 
-        out = self.ca(query_seq, kv_seq, attn_mask=attn_mask,key_padding_mask=key_padding_mask) # (T, B, resnet_out)
+        out = self.ca(query_seq, kv_seq, attn_mask=attn_mask) # (T, B, resnet_out)
         out = out if batch_first else out.transpose(0,1).contiguous() # (B, T, resnet_out)
         # out = torch.nan_to_num(out, nan=0.0) # (B, T, resnet_out)
         out = out * valid_mask.unsqueeze(-1)
-        combined_mask = attn_mask.unsqueeze(0) | key_padding_mask.unsqueeze(1)
-        bad_rows = combined_mask.all(dim=-1)  # (B, T)
-        if bad_rows.any():
-            print("⚠️ Some queries have all positions masked:", bad_rows.nonzero())
         if torch.isnan(out).any(): 
             print("NaN detected in output")
         if torch.isinf(out).any():
