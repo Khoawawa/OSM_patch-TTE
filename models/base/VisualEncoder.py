@@ -75,8 +75,7 @@ class FiLm_ResnetEncoder(nn.Module):
         output_grid[valid_mask] = gathered_patch_embs # (total_link, resnet_out) -> (B, T, resnet_out)
         output = self.adapter(output_grid, patch_center_gps, offsets)
         # adapter
-        output_grid = self.adapter(output_grid,valid_mask) # (B, T, resnet_out)
-        return output_grid
+        return output
     
 class BE_ResnetEncoder(nn.Module):
     def __init__(self,adapter_hidden_dim=512, adapter_layers=2):
