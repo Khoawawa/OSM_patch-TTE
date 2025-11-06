@@ -4,6 +4,7 @@ from transformers import CLIPProcessor, CLIPVisionModel
 from torchvision.models import resnet50
 from models.base.CrossAttention import LayerNormCA
 import torchvision
+from models.base.FiLM import FilMAdapter
 batch_first=True
 class BE_Resnet_CA_Module(nn.Module):
     def __init__(self,adapter_hidden_dim=512,num_heads=8):
@@ -39,12 +40,15 @@ class BE_Resnet_CA_Module(nn.Module):
         # out = torch.nan_to_num(out, nan=0.0) # (B, T, resnet_out)
         out = out * valid_mask.unsqueeze(-1)
         if torch.isnan(out).any(): 
-            print("NaN detected in output")
+            idx = torch.isnan(out).any(dim=-1)
+            print("NaN detected in output at positions: ", idx.nonzero(as_tuple=True))
+            
         if torch.isinf(out).any():
             print("Inf detected in output")
         return out, gps_embs # (B, T, resnet_out), (B, T, 16)
-class BE_ResnetEncoder(nn.Module):
-    def __init__(self,adapter_hidden_dim=512):
+
+class FiLm_ResnetEncoder(nn.Module):
+    def __init__(self, adapter_hidden_dim=512,activation="RELU"):
         super().__init__()
         weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1
         self.resnet = resnet50(weights=weights)
@@ -55,6 +59,44 @@ class BE_ResnetEncoder(nn.Module):
         for param in self.resnet.parameters():
             param.requires_grad = False
         # adapter
+        self.adapter = FilMAdapter(self.output_dim,2,2,adapter_hidden_dim,activation=activation)
+    def forward(self, patches, patch_ids, valid_mask, patch_center_gps, offsets):
+        # patches: (U, C, H, W)
+        # patch_ids: (total_link,)
+        # valid_mask: (B, T)
+        patches = patches.float() / 255.0
+        out = self.resnet(patches).flatten(1) # (U, resnet_out)
+        out = self.adapter(out) # (U, resnet_out)
+        B, T = valid_mask.shape
+        D = out.shape[-1]
+        
+        gathered_patch_embs = out[patch_ids] # (total_link, resnet_out)
+        output_grid = torch.zeros(B, T, D, device=out.device, dtype=out.dtype)
+        output_grid[valid_mask] = gathered_patch_embs # (total_link, resnet_out) -> (B, T, resnet_out)
+        output = self.adapter(output_grid, patch_center_gps, offsets)
+        # adapter
+        output_grid = self.adapter(output_grid,valid_mask) # (B, T, resnet_out)
+        return output_grid
+    
+class BE_ResnetEncoder(nn.Module):
+    def __init__(self,adapter_hidden_dim=512, adapter_layers=2):
+        super().__init__()
+        weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1
+        self.resnet = resnet50(weights=weights)
+        # get output dim of resnet
+        self.output_dim = self.resnet.fc.in_features
+        self.resnet = nn.Sequential(*list(self.resnet.children())[:-1]) # remove classifier
+        # freezing
+        for param in self.resnet.parameters():
+            param.requires_grad = False
+        
+        # adapter
+        in2hid = nn.Sequential(
+            nn.Linear(self.output_dim, adapter_hidden_dim),
+            nn.LeakyReLU()
+        )
+
+        hid2out = nn.Linear(adapter_hidden_dim, self.output_dim)
         self.adapter = nn.Sequential(
             nn.Linear(self.output_dim, adapter_hidden_dim),
             nn.LeakyReLU(),

@@ -13,6 +13,7 @@ class ContextEncoder(nn.Module):
         self.seg_embedding_learning = BertForMaskedLM(self.bert_config)
 
         self.highwayembed = nn.Embedding(15, 5, padding_idx=0)
+        self.gpsembed = nn.Linear(4,16)
         self.weekembed = nn.Embedding(8, 3)
         self.dateembed = nn.Embedding(367, 10)
         self.timeembed = nn.Embedding(1441, 20)
@@ -22,7 +23,7 @@ class ContextEncoder(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(self.timene_dim, self.timene_dim)
         )
-        self.hidden_size = 2 + 5 + self.timene_dim
+        self.hidden_size = 2 + 5 + 16 + self.timene_dim
 
     def seg_embedding(self, x):
         bert_output = self.seg_embedding_learning(input_ids=x[0], encoder_attention_mask=x[1],  labels=x[2], output_hidden_states=True)
@@ -37,14 +38,14 @@ class ContextEncoder(nn.Module):
         weekrep = self.weekembed(feature[:, :, 3].long()) # 3
         daterep = self.dateembed(feature[:, :, 4].long())  # 10
         timerep = self.timeembed(feature[:, :, 5].long()) # 20
+        gpsrep = self.gpsembed(feature[:, :, 6:10].float()) # 16
         datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 3 + 10 + 20 = 33
 
         loss_1, hidden_states, prediction_scores = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']])
         # 
         timene_input = torch.cat([self.seg_embedding_learning.bert.embeddings.word_embeddings(inputs['rawlinks']), datetimerep], dim=-1)
         timene = self.timene(timene_input)+timene_input
-        features = torch.cat([feature[..., 1:3], highwayrep, timene], dim=-1)
-        # 2 + 5 + (3 + 10 + 20 + bert_hiden_size)= 40 + bert_hiden_size
+        features = torch.cat([feature[..., 1:3], gpsrep,highwayrep, timene], dim=-1) # 2 + 5 + 16 + 33 + bert_hiden_size
         return features, loss_1, (weekrep,daterep,timerep)
         
 if __name__ == "__main__":

@@ -109,27 +109,30 @@ def collate_func(data, args, info_all):
     patch_data = torch.stack(patch_data, dim=0) # (unique_patch_num, 3, 112, 112)  
     # offset calculate
     offsets = []
+    patch_center = []
     patch_size = args.data_config['patch']['patch_size']
     for patch, gps in patches:  
+        x_center = patch['center']['x']
+        y_center = patch['center']['y']
         # compute distance from center
-        mid_x = (gps[0] + gps[2]) / 2
-        mid_y = (gps[1] + gps[3]) / 2
-        dx = mid_x - patch['center']['x']
-        dy = mid_y - patch['center']['y']
-        # normalize to scale [0, 1] --> min max normalization
-        normalized_dx = dx * math.sqrt(2) / patch_size
-        normalized_dy = dy * math.sqrt(2) / patch_size
+        dx = gps[0] - x_center
+        dy = gps[1] - y_center
+        # normalize to scale [-1, 1] --> min max normalization
+        normalized_dx = 2 * dx / patch_size
+        normalized_dy = 2 * dy / patch_size
+        patch_center.append(torch.tensor([x_center, y_center], dtype=torch.float32))
         offsets.append(torch.tensor([normalized_dx, normalized_dy], dtype=torch.float32))
     offset_tensor = torch.stack(offsets)
-    
+    patch_center_tensor = torch.stack(patch_center)
     original_idx = np.arange(len(patches))
     placement = []
     batch_offsets = []
+    batch_patch_center = []
     ptr = 0
     max_len = lens.max()
     
     dummy_offset = torch.zeros(2, dtype=torch.float32)
-    
+    dummy_patch_center = torch.zeros(2, dtype=torch.float32)
     for L in lens:
         # patch placement
         indices = original_idx[ptr:ptr+L].tolist()
@@ -139,11 +142,15 @@ def collate_func(data, args, info_all):
         seq = offset_tensor[ptr:ptr+L]
         pad = dummy_offset.repeat(max_len - L, 1)
         batch_offsets.append(torch.cat([seq, pad], dim=0))
-        
+        # patch center
+        seq = patch_center_tensor[ptr:ptr+L]
+        pad = dummy_patch_center.repeat(max_len - L, 1)
+        batch_patch_center.append(torch.cat([seq, pad], dim=0))
         ptr += L
     placement_tensor = torch.tensor(placement, dtype=torch.long) # (B, T)
     batch_offsets = torch.stack(batch_offsets)  # (B, T, 2)
-    
+    batch_patch_center = torch.stack(batch_patch_center) # (B, T, 2)
+
     unique_idx = torch.tensor([link_mapper[i] for i in range(len(patches))], dtype=torch.long) # (total_link,)
     placement_mask = placement_tensor != -1 # (B, T)
     valid_links_indices = placement_tensor[placement_mask]
@@ -154,6 +161,7 @@ def collate_func(data, args, info_all):
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
     con_links[:, 1:3] = scaler.transform(con_links[:, 1:3])
     con_links[:, 6:10] = scaler2.transform(con_links[:, 6:10])
+    patch_center_tensor = scaler2.transform(patch_center_tensor)
     padded[mask] = con_links
     rawlinks = np.full(mask.shape, fill_value=args.data_config['edges'] + 1, dtype=np.int16)
     rawlinks[mask] = np.concatenate(linkids)
@@ -187,6 +195,7 @@ def collate_func(data, args, info_all):
             'valid_mask': placement_mask,
             'mask': mask,
             'offsets': batch_offsets,
+            'patch_center_gps': batch_patch_center,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
             'mask_label': torch.LongTensor(mask_label),

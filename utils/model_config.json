@@ -19,7 +19,6 @@
     },
     "OSM_BER_TTE":{
         "adapter_hidden_dim":512,
-        "ca_heads":8,
         "seq_hidden_dim": 128,
         "seq_layer": 2,
         "decoder_layer": 3,

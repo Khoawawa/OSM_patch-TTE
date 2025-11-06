@@ -2,7 +2,7 @@ import torch
 from models.VideoMae import ViTEncoder, ResnetEncoder
 from models.base.ContextEncoder import ContextEncoder
 from models.base.LayerNormGRU import LayerNormGRU
-from models.base.VisualEncoder import BE_Resnet_CA_Module
+from models.base.VisualEncoder import FiLm_ResnetEncoder
 import torch.nn.functional as F
 import torch.nn as nn
 import math
@@ -16,15 +16,15 @@ batch_first = False
 # then they are fed into a cross attention fusion block
 # then go into mlp to extract the time#
 class OSM_BER_TTE(torch.nn.Module):
-    def __init__(self, adapter_hidden_dim, ca_heads,
+    def __init__(self, adapter_hidden_dim,
                  seq_hidden_dim, seq_layer,
                  decoder_layer,
                  bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
         super().__init__()
-        self.visual_encoder = BE_Resnet_CA_Module(adapter_hidden_dim,ca_heads)
+        self.visual_encoder = FiLm_ResnetEncoder(adapter_hidden_dim)
         visual_out_dim = self.visual_encoder.resnet.output_dim # 2048 
         self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
-        self.temporal_block = LayerNormGRU(input_dim=visual_out_dim + self.context_encoder.hidden_size + 16, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
+        self.temporal_block = LayerNormGRU(input_dim=visual_out_dim + self.context_encoder.hidden_size, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.mlp = nn.Sequential(
             nn.Linear(seq_hidden_dim + 33, seq_hidden_dim),
@@ -44,15 +44,15 @@ class OSM_BER_TTE(torch.nn.Module):
         patches = input_['patches']
         patch_ids = input_['patch_ids']
         valid_mask = input_['valid_mask']
-        gps = input_['links'][:,:,6:10]
+        patch_center_gps = input_['patch_center_gps']
         diff = input_['offsets']
         # visual output
-        visual_output, gps_embeds = self.visual_encoder(patches,patch_ids,valid_mask,gps,diff) # (B, T, resnet_out), (B, T, 16)
+        visual_output = self.visual_encoder(patches,patch_ids,valid_mask,patch_center_gps,diff) # (B, T, resnet_out), (B, T, 16)
         # context output
         ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
         # temporal sendoff
-        representation = torch.cat([visual_output, ctx_output, gps_embeds], dim=-1) # (B,T,Vis + Ctx + 16)
-        representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx + 16)
+        representation = torch.cat([visual_output, ctx_output], dim=-1) # (B,T,Res + Ctx)
+        representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
         decoder = self.decoder(hiddens, input_['lens'].long()) # (T,B,seq_hidden_dim)
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
