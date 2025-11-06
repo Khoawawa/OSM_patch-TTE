@@ -330,7 +330,7 @@ def create_model(args):
         model_config = json.load(file)[args.model]
     args.model_config = model_config
     model_config['pad_token_id'] = args.data_config['edges'] + 1
-    if args.model == "OSM_BER_TTE":
+    if "OSM_BER_TTE" in args.model:
         return OSM_BER_TTE(**model_config)
         
 

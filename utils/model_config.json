@@ -17,7 +17,7 @@
         "bert_hidden_layers":4,
         "resnet_unfreeze_layer": 2
     },
-    "OSM_BER_TTE":{
+    "OSM_BER_TTE_Film":{
         "adapter_hidden_dim":512,
         "seq_hidden_dim": 128,
         "seq_layer": 2,
