@@ -64,7 +64,7 @@ def get_unique_patches(patches):
 
     return unique_patches, link_mapper 
 def collate_func(data, args, info_all):
-    transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2 = info_all
+    transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2,scaler3 = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = []
@@ -161,7 +161,7 @@ def collate_func(data, args, info_all):
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
     con_links[:, 1:3] = scaler.transform(con_links[:, 1:3])
     con_links[:, 6:10] = scaler2.transform(con_links[:, 6:10])
-    patch_center_tensor = scaler2.transform(patch_center_tensor)
+    patch_center_tensor = scaler3.transform(patch_center_tensor)
     padded[mask] = con_links
     rawlinks = np.full(mask.shape, fill_value=args.data_config['edges'] + 1, dtype=np.int16)
     rawlinks[mask] = np.concatenate(linkids)
@@ -244,7 +244,7 @@ class BatchSampler:
 
 def load_datadoct_pre(args):
     global info_all
-    transform, grid_index, edgeinfo, nodeinfo, scaler, scaler2 = None, None, None, None, None, None
+    transform, grid_index, edgeinfo, nodeinfo, scaler, scaler2, scaler3 = None, None, None, None, None, None, None
     
     abspath = os.path.join(os.path.dirname(__file__), "data_config.json")
     with open(abspath) as file:
@@ -268,6 +268,10 @@ def load_datadoct_pre(args):
         scaler2.fit([[0, 0, 0, 0]])
         scaler2.mean_ = [-8.62247695, 41.15923239, -8.62256569, 41.15929004]
         scaler2.scale_ = [0.02520552, 0.01236445, 0.02526226, 0.01242564]
+        scaler3 = StandardScaler()
+        scaler3.fit([[0, 0]])
+        scaler3.mean_ = [-8.62247695, 41.15923239]
+        scaler3.scale_ = [0.02520552, 0.01236445]
         
     elif "chengdu" in args.dataset:
         scaler = StandardScaler()
@@ -281,7 +285,7 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2]
+    info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2, scaler3]
 
 
 class Datadict(Dataset):
