@@ -48,7 +48,6 @@ def gps_mapper(gps, grid_index, minx, miny, patch_size):
     x_s, y_s, _,_ = gps
     i, j = gps_to_patch_idx(x_s, y_s, minx, miny, patch_size)
     patch = grid_index.get((i, j))
-    patch['image_path'].replace("\\", '/')
     return patch, gps
 def get_unique_patches(patches):
     unique_patches= []
@@ -104,9 +103,11 @@ def collate_func(data, args, info_all):
     patch_data = []
     # convert to tensor pad image
     for patch in unique_patches:
-        image = Image.open(patch['image_path']).convert('RGB')
-        patch_data.append(transform(image)) # [tensor(3, 112,112)]
-    patch_data = torch.stack(patch_data, dim=0) # (unique_patch_num, 3, 112, 112)  
+        embedding = patch['embedding_path']
+        embedding_tensor = torch.load(embedding)
+        patch_data.append(embedding_tensor) # [tensor(3, 112,112)]
+
+    patch_data = torch.stack(patch_data, dim=0) # (U, 3, 112, 112)  
     # offset calculate
     offsets = []
     patch_center = []
@@ -122,8 +123,10 @@ def collate_func(data, args, info_all):
         normalized_dy = 2 * dy / patch_size
         patch_center.append(torch.tensor([x_center, y_center], dtype=torch.float32))
         offsets.append(torch.tensor([normalized_dx, normalized_dy], dtype=torch.float32))
+
     offset_tensor = torch.stack(offsets)
     patch_center_tensor = torch.stack(patch_center)
+
     original_idx = np.arange(len(patches))
     placement = []
     batch_offsets = []

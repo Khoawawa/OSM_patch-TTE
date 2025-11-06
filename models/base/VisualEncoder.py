@@ -48,24 +48,32 @@ class BE_Resnet_CA_Module(nn.Module):
         return out, gps_embs # (B, T, resnet_out), (B, T, 16)
 
 class FiLm_ResnetEncoder(nn.Module):
-    def __init__(self, adapter_hidden_dim=512,activation="RELU"):
+    def __init__(self, adapter_hidden_dim=512,activation="RELU", use_precomputed=False):
         super().__init__()
-        weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1
-        self.resnet = resnet50(weights=weights)
-        # get output dim of resnet
-        self.output_dim = self.resnet.fc.in_features
-        self.resnet = nn.Sequential(*list(self.resnet.children())[:-1]) # remove classifier
-        # freezing
-        for param in self.resnet.parameters():
-            param.requires_grad = False
+        self.precomputed = use_precomputed
+
+        if not use_precomputed:
+            weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1
+            self.resnet = resnet50(weights=weights)
+            # get output dim of resnet
+            self.output_dim = self.resnet.fc.in_features
+            self.resnet = nn.Sequential(*list(self.resnet.children())[:-1]) # remove classifier
+            # freezing
+            for param in self.resnet.parameters():
+                param.requires_grad = False
+        else:
+            self.output_dim = 2048
         # adapter
         self.adapter = FilMAdapter(self.output_dim,2,2,adapter_hidden_dim,activation=activation)
     def forward(self, patches, patch_ids, valid_mask, patch_center_gps, offsets):
         # patches: (U, C, H, W)
         # patch_ids: (total_link,)
         # valid_mask: (B, T)
-        out = self.resnet(patches).flatten(1) # (U, resnet_out)
-  
+        if not self.precomputed:
+            out = self.resnet(patches).flatten(1) # (U, resnet_out)
+        else:
+            out = patches.flatten(1) # (U, resnet_out)
+            
         B, T = valid_mask.shape
         D = out.shape[-1]
         
