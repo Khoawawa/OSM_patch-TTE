@@ -72,6 +72,7 @@ class FiLm_ResnetEncoder(nn.Module):
         gathered_patch_embs = out[patch_ids] # (total_link, resnet_out)
         output_grid = torch.zeros(B, T, D, device=out.device, dtype=out.dtype)
         output_grid[valid_mask] = gathered_patch_embs # (total_link, resnet_out) -> (B, T, resnet_out)
+        
         output = self.adapter(output_grid, patch_center_gps, offsets, valid_mask)
         # adapter
         return output
