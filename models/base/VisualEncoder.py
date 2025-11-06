@@ -66,7 +66,7 @@ class FiLm_ResnetEncoder(nn.Module):
         # valid_mask: (B, T)
         patches = patches.float() / 255.0
         out = self.resnet(patches).flatten(1) # (U, resnet_out)
-        out = self.adapter(out) # (U, resnet_out)
+  
         B, T = valid_mask.shape
         D = out.shape[-1]
         
