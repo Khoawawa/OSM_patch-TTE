@@ -22,6 +22,16 @@ def get_transform():
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
+
+def calc_norm_offset(patch, x, y, img_size):
+    center_x, center_y = patch["center"]["x"], patch["center"]["y"]
+
+    px = (x - center_x) / (img_size // 2)
+    py = (y - center_y) / (img_size // 2)
+    
+    return px, py
+
+
 def get_global_min_bounds(patches_json):
     """
     Extract the global minimum x (longitude) and y (latitude)
@@ -121,7 +131,10 @@ def collate_func(data, args, info_all):
         # normalize to scale [-1, 1] --> min max normalization
         normalized_dx = 2 * dx / patch_size
         normalized_dy = 2 * dy / patch_size
-        patch_center.append(torch.tensor([x_center, y_center], dtype=torch.float32))
+
+        normed_center_x = x_center / 90.0
+        normed_center_y = y_center / 180.0
+        patch_center.append(torch.tensor([normed_center_x, normed_center_y], dtype=torch.float32))
         offsets.append(torch.tensor([normalized_dx, normalized_dy], dtype=torch.float32))
 
     offset_tensor = torch.stack(offsets)
@@ -164,7 +177,7 @@ def collate_func(data, args, info_all):
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
     con_links[:, 1:3] = scaler.transform(con_links[:, 1:3])
     con_links[:, 6:10] = scaler2.transform(con_links[:, 6:10])
-    patch_center_tensor = scaler3.transform(patch_center_tensor)
+
     padded[mask] = con_links
     rawlinks = np.full(mask.shape, fill_value=args.data_config['edges'] + 1, dtype=np.int16)
     rawlinks[mask] = np.concatenate(linkids)
