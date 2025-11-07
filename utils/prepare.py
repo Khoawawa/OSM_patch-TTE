@@ -71,8 +71,16 @@ def get_unique_patches(patches):
         link_mapper[i] = seen[pid]
 
     return unique_patches, link_mapper 
+
+def build_tensor_dict(patches_json):
+    tensor_dict = {}
+    for patch_info in patches_json:
+        pid = patch_info["patch_id"]
+        path = patch_info["embedding_path"]
+        tensor_dict[pid] = torch.load(path)
+    return tensor_dict
 def collate_func(data, args, info_all):
-    transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2 = info_all
+    transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2,global_patch_tensor_dict = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = []
@@ -111,33 +119,33 @@ def collate_func(data, args, info_all):
     unique_patches, link_mapper = get_unique_patches(patches) 
     patch_data = []
     # convert to tensor pad image
+
     for patch in unique_patches:
-        embedding = patch['embedding_path']
-        embedding_tensor = torch.load(embedding)
-        patch_data.append(embedding_tensor) # [tensor(3, 112,112)]
+        pid = patch['patch_id']
+        patch_data.append(global_patch_tensor_dict[pid])
 
-    patch_data = torch.stack(patch_data, dim=0) # (U, 3, 112, 112)  
+    patch_data = torch.stack(patch_data, dim=0)  
     # offset calculate
-    offsets = []
-    patch_center = []
     patch_size = args.data_config['patch']['patch_size']
-    for patch, gps in patches:  
-        x_center = patch['center']['x']
-        y_center = patch['center']['y']
-        # compute distance from center
-        dx = gps[0] - x_center
-        dy = gps[1] - y_center
-        # normalize to scale [-1, 1] --> min max normalization
-        normalized_dx = 2 * dx / patch_size
-        normalized_dy = 2 * dy / patch_size
 
-        normed_center_x = x_center / 90.0
-        normed_center_y = y_center / 180.0
-        patch_center.append(torch.tensor([normed_center_x, normed_center_y], dtype=torch.float32))
-        offsets.append(torch.tensor([normalized_dx, normalized_dy], dtype=torch.float32))
+    x_centers_list = [p['center']['x'] for p, _ in patches]
+    y_centers_list = [p['center']['y'] for p, _ in patches]
+    gps_list = [g for _, g in patches]
 
-    offset_tensor = torch.stack(offsets) # (L, 2)
-    patch_center_tensor = torch.stack(patch_center) # (L, 2)
+    x_centers = torch.tensor(x_centers_list, dtype=torch.float32)
+    y_centers = torch.tensor(y_centers_list, dtype=torch.float32)
+    gps_data = torch.tensor(gps_list, dtype=torch.float32)
+    dx = gps_data[:, 0] - x_centers
+    dy = gps_data[:, 1] - y_centers
+
+    normalized_dx = 2 * dx / patch_size
+    normalized_dy = 2 * dy / patch_size
+
+    normed_center_x = x_centers / 90.0
+    normed_center_y = y_centers / 180.0
+
+    offset_tensor = torch.stack([normalized_dx, normalized_dy], dim=1) # (L, 2)
+    patch_center_tensor = torch.stack([normed_center_x, normed_center_y], dim=1) # (L, 2)
 
     max_len = lens.max()
 
@@ -244,6 +252,7 @@ def load_datadoct_pre(args):
     with open(os.path.join(args.absPath,args.data_config['patch']['patch_dir'],'patch_metadata.json'), 'r') as f:
         patch_json = json.load(f)
     grid_index = build_grid_index(patch_json, args.data_config['patch']['patch_size'])
+    global_patch_tensor_dict = build_tensor_dict(patch_json)
     if "porto" in args.dataset:
         scaler = StandardScaler()
         scaler.fit([[0, 0]])
@@ -267,7 +276,7 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2]
+    info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2, global_patch_tensor_dict]
 
 
 class Datadict(Dataset):
