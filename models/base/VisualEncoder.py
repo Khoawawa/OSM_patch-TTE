@@ -5,7 +5,7 @@ from torchvision.models import resnet50
 from models.base.CrossAttention import LayerNormCA
 import torchvision
 from models.base.FiLM import FilMAdapter
-from models.base.PositionalEncoding import PositionalEncoding
+from models.base.PositionalEncoding import PositionalEncoding2D
 batch_first=True
 
 class BE_Resnet_CA_Module(nn.Module):
@@ -13,8 +13,8 @@ class BE_Resnet_CA_Module(nn.Module):
         super().__init__()
         self.resnet = BE_ResnetEncoder(adapter_hidden_dim=adapter_hidden_dim)
         
-        self.offset_pe = PositionalEncoding(128)
-        self.gps_pe = PositionalEncoding(256)
+        self.offset_pe = PositionalEncoding2D(128)
+        self.gps_pe = PositionalEncoding2D(256)
         
         kv_dim = self.diff_embs.out_features + self.gps_embs.out_features
         
@@ -100,7 +100,7 @@ class CA_ResnetEncoder(nn.Module):
 
         gps_embs = self.gps_pe(valid_gps) # (L, 256)
         diff_embs = self.offset_pe(valid_offsets) # # (L, 128)
-        
+
         query_embs = torch.cat([gps_embs, diff_embs], dim=-1) # (L, 384)
         query_embs = query_embs.unsqueeze(1) # (L, 1, 384)
         # cross attention
