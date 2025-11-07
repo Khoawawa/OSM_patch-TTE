@@ -137,8 +137,8 @@ def collate_func(data, args, info_all):
         patch_center.append(torch.tensor([normed_center_x, normed_center_y], dtype=torch.float32))
         offsets.append(torch.tensor([normalized_dx, normalized_dy], dtype=torch.float32))
 
-    offset_tensor = torch.stack(offsets)
-    patch_center_tensor = torch.stack(patch_center)
+    offset_tensor = torch.stack(offsets) # (L, 2)
+    patch_center_tensor = torch.stack(patch_center) # (L, 2)
 
     original_idx = np.arange(len(patches))
     placement = []
@@ -146,22 +146,13 @@ def collate_func(data, args, info_all):
     batch_patch_center = []
     ptr = 0
     max_len = lens.max()
-    
-    dummy_offset = torch.zeros(2, dtype=torch.float32)
-    dummy_patch_center = torch.zeros(2, dtype=torch.float32)
+
     for L in lens:
         # patch placement
         indices = original_idx[ptr:ptr+L].tolist()
         indices += [-1] * (max_len - L)
         placement.append(indices)
-        # offsets
-        seq = offset_tensor[ptr:ptr+L]
-        pad = dummy_offset.repeat(max_len - L, 1)
-        batch_offsets.append(torch.cat([seq, pad], dim=0))
-        # patch center
-        seq = patch_center_tensor[ptr:ptr+L]
-        pad = dummy_patch_center.repeat(max_len - L, 1)
-        batch_patch_center.append(torch.cat([seq, pad], dim=0))
+        
         ptr += L
     placement_tensor = torch.tensor(placement, dtype=torch.long) # (B, T)
     batch_offsets = torch.stack(batch_offsets)  # (B, T, 2)
@@ -210,8 +201,8 @@ def collate_func(data, args, info_all):
             'patch_ids': patch_ids,
             'valid_mask': placement_mask,
             'mask': mask,
-            'offsets': batch_offsets,
-            'patch_center_gps': batch_patch_center,
+            'offsets': offset_tensor,
+            'patch_center_gps': patch_center_tensor,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
             'mask_label': torch.LongTensor(mask_label),

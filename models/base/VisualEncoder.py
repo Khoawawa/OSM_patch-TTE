@@ -81,6 +81,9 @@ class CA_ResnetEncoder(nn.Module):
         # patches: (U, C, H, W)
         # patch_ids: (total_link,)
         # valid_mask: (B, T)
+        # patch_center_gps: (total_link, 2)
+        # offsets: (total_link, 2)
+
         if not self.precomputed:
             out = self.resnet(patches) # (U, resnet_out,7,7)
         else:
@@ -94,12 +97,9 @@ class CA_ResnetEncoder(nn.Module):
         gathered_patch_embs = out[patch_ids] # (total_link, 49, resnet_out)
         # adapter
         kv_embs = self.adapter(gathered_patch_embs) # (L, 49, resnet_out)
-        # pe center and offset
-        valid_gps = patch_center_gps[valid_mask] # (L,2)
-        valid_offsets = offsets[valid_mask] # (L,2)
 
-        gps_embs = self.gps_pe(valid_gps) # (L, 256)
-        diff_embs = self.offset_pe(valid_offsets) # # (L, 128)
+        gps_embs = self.gps_pe(patch_center_gps) # (L, 256)
+        diff_embs = self.offset_pe(offsets) # # (L, 128)
 
         query_embs = torch.cat([gps_embs, diff_embs], dim=-1) # (L, 384)
         query_embs = query_embs.unsqueeze(1) # (L, 1, 384)
