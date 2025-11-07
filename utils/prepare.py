@@ -134,7 +134,9 @@ def collate_func(data, args, info_all):
 
     x_centers = torch.tensor(x_centers_list, dtype=torch.float32)
     y_centers = torch.tensor(y_centers_list, dtype=torch.float32)
-    gps_data = torch.tensor(gps_list, dtype=torch.float32)
+    gps_numpy = np.array(gps_list, dtype=np.float32)
+    gps_data = torch.from_numpy(gps_numpy)
+    
     dx = gps_data[:, 0] - x_centers
     dy = gps_data[:, 1] - y_centers
 
