@@ -5,6 +5,8 @@ from train.training_main import train_main
 import torch
 import numpy as np
 import random
+import os
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
