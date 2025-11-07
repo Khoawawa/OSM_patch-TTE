@@ -29,8 +29,6 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--seed', type=int, help='input the seed', default=42)
     args = parser.parse_args()
     args.absPath = os.path.dirname(os.path.abspath(__file__))
-    reben_path = "/content/reben-training-scripts"
-    sys.path.append(reben_path)
     print(args.model)
     print(args.dataset)
     torch.manual_seed(args.seed)

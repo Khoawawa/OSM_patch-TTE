@@ -34,7 +34,7 @@ class CA_ResnetEncoder(nn.Module):
             nn.Linear(adapter_hidden_dim, self.resnet_out)
         )
 
-        self.ca = LayerNormCA(dim_q=128+256,dim_kv=self.resnet_out * 2, num_heads=8,batch_first=batch_first)
+        self.ca = LayerNormCA(dim_q=128+256,dim_kv=self.resnet_out, num_heads=8,batch_first=batch_first)
 
     def forward(self, patches, patch_ids, valid_mask, patch_center_gps, offsets):
         # patches: (U, C, H, W)
@@ -56,7 +56,7 @@ class CA_ResnetEncoder(nn.Module):
         gathered_patch_embs = out[patch_ids] # (total_link, 49, resnet_out)
         # adapter
         adapter_out = self.adapter(gathered_patch_embs) # (L, 49, resnet_out)
-        kv_embs = torch.cat([gathered_patch_embs, adapter_out], dim=-1) # (L, 49, 2*resnet_out)
+        kv_embs = adapter_out # (L, 49, 2*resnet_out)
         gps_embs = self.gps_pe(patch_center_gps) # (L, 256)
         diff_embs = self.offset_pe(offsets) # # (L, 128)
 
