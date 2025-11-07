@@ -5,14 +5,16 @@ from torchvision.models import resnet50
 from models.base.CrossAttention import LayerNormCA
 import torchvision
 from models.base.FiLM import FilMAdapter
+from models.base.PositionalEncoding import PositionalEncoding
 batch_first=True
+
 class BE_Resnet_CA_Module(nn.Module):
     def __init__(self,adapter_hidden_dim=512,num_heads=8):
         super().__init__()
         self.resnet = BE_ResnetEncoder(adapter_hidden_dim=adapter_hidden_dim)
         
-        self.diff_embs = nn.Linear(2, 8)
-        self.gps_embs = nn.Linear(4, 16)
+        self.offset_pe = PositionalEncoding(128)
+        self.gps_pe = PositionalEncoding(256)
         
         kv_dim = self.diff_embs.out_features + self.gps_embs.out_features
         
@@ -46,6 +48,70 @@ class BE_Resnet_CA_Module(nn.Module):
         if torch.isinf(out).any():
             print("Inf detected in output")
         return out, gps_embs # (B, T, resnet_out), (B, T, 16)
+class CA_ResnetEncoder(nn.Module):
+    def __init__(self, adapter_hidden_dim=512, use_precomputed=False):
+        super().__init__()
+        self.precomputed = use_precomputed
+
+        if not use_precomputed:
+            weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1
+            self.resnet = resnet50(weights=weights)
+            self.resnet_out = self.resnet.fc.in_features
+            self.resnet = nn.Sequential(*list(self.resnet.children())[:-2]) # remove classifier and pool for feature
+            # freezing
+            for param in self.resnet.parameters():
+                param.requires_grad = False
+        else:
+            self.resnet_out = 2048  
+        
+        self.offset_pe = PositionalEncoding(128)
+        self.gps_pe = PositionalEncoding(256)
+        self.output_dim = 128 + 256
+        self.adapter = nn.Sequential(
+            nn.Linear(self.resnet_out, adapter_hidden_dim),
+            nn.LeakyReLU(),
+            nn.Linear(adapter_hidden_dim, adapter_hidden_dim),
+            nn.LeakyReLU(),
+            nn.Linear(adapter_hidden_dim, self.resnet_out)
+        )
+
+        self.ca = LayerNormCA(dim_q=128+256,dim_kv=self.resnet_out, num_heads=8,batch_first=batch_first)
+
+    def forward(self, patches, patch_ids, valid_mask, patch_center_gps, offsets):
+        # patches: (U, C, H, W)
+        # patch_ids: (total_link,)
+        # valid_mask: (B, T)
+        if not self.precomputed:
+            out = self.resnet(patches) # (U, resnet_out,7,7)
+        else:
+            out = patches # (U, resnet_out,7,7)
+            
+        B, T = valid_mask.shape
+        C,H,W = out.shape[1:]
+
+        out = out.view(out.shape[0], C, H * W).permute(0, 2, 1) # (U, 49, resnet_out)
+        
+        gathered_patch_embs = out[patch_ids] # (total_link, 49, resnet_out)
+        # adapter
+        kv_embs = self.adapter(gathered_patch_embs) # (L, 49, resnet_out)
+        # pe center and offset
+        valid_gps = patch_center_gps[valid_mask] # (L,2)
+        valid_offsets = offsets[valid_mask] # (L,2)
+
+        gps_embs = self.gps_pe(valid_gps) # (L, 256)
+        diff_embs = self.offset_pe(valid_offsets) # # (L, 128)
+        
+        query_embs = torch.cat([gps_embs, diff_embs], dim=-1) # (L, 384)
+        query_embs = query_embs.unsqueeze(1) # (L, 1, 384)
+        # cross attention
+        attn_out = self.ca(query_embs,kv_embs) # (L, 1, 384)
+        attn_out = attn_out.squeeze(1) # (L, 384)
+        # map back to grid
+        output_grid = torch.zeros(B,T,self.output_dim, device=out.device, dtype=out.dtype)
+        output_grid[valid_mask] = attn_out
+        
+        return output_grid
+    
 
 class FiLm_ResnetEncoder(nn.Module):
     def __init__(self, adapter_hidden_dim=512,activation="RELU", use_precomputed=False):
@@ -57,7 +123,7 @@ class FiLm_ResnetEncoder(nn.Module):
             self.resnet = resnet50(weights=weights)
             # get output dim of resnet
             self.output_dim = self.resnet.fc.in_features
-            self.resnet = nn.Sequential(*list(self.resnet.children())[:-1]) # remove classifier
+            self.resnet = nn.Sequential(*list(self.resnet.children())[:-2]) # remove classifier
             # freezing
             for param in self.resnet.parameters():
                 param.requires_grad = False

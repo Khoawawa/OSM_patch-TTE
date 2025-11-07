@@ -1,8 +1,8 @@
 import torch
-from models.VideoMae import ViTEncoder, ResnetEncoder
+
 from models.base.ContextEncoder import ContextEncoder
 from models.base.LayerNormGRU import LayerNormGRU
-from models.base.VisualEncoder import FiLm_ResnetEncoder
+from models.base.VisualEncoder import FiLm_ResnetEncoder, CA_ResnetEncoder
 import torch.nn.functional as F
 import torch.nn as nn
 import math
@@ -21,7 +21,7 @@ class OSM_BER_TTE(torch.nn.Module):
                  decoder_layer,
                  bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
         super().__init__()
-        self.visual_encoder = FiLm_ResnetEncoder(adapter_hidden_dim,use_precomputed=use_precomputed)
+        self.visual_encoder = CA_ResnetEncoder(adapter_hidden_dim,use_precomputed=use_precomputed)
         visual_out_dim = self.visual_encoder.output_dim # 2048 
         self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
         self.temporal_block = LayerNormGRU(input_dim=visual_out_dim + self.context_encoder.hidden_size, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
@@ -47,7 +47,7 @@ class OSM_BER_TTE(torch.nn.Module):
         patch_center_gps = input_['patch_center_gps']
         diff = input_['offsets']
         # visual output
-        visual_output = self.visual_encoder(patches,patch_ids,valid_mask,patch_center_gps,diff) # (B, T, resnet_out), (B, T, 16)
+        visual_output = self.visual_encoder(patches,patch_ids,valid_mask,patch_center_gps,diff) # (B, T, 384)
         # context output
         ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
         # temporal sendoff
