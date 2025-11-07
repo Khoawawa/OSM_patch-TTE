@@ -73,7 +73,7 @@ def get_unique_patches(patches):
 
     return unique_patches, link_mapper 
 def collate_func(data, args, info_all):
-    transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2,scaler3 = info_all
+    transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = []
@@ -140,30 +140,11 @@ def collate_func(data, args, info_all):
     offset_tensor = torch.stack(offsets) # (L, 2)
     patch_center_tensor = torch.stack(patch_center) # (L, 2)
 
-    original_idx = np.arange(len(patches))
-    placement = []
-    batch_offsets = []
-    batch_patch_center = []
-    ptr = 0
     max_len = lens.max()
 
-    for L in lens:
-        # patch placement
-        indices = original_idx[ptr:ptr+L].tolist()
-        indices += [-1] * (max_len - L)
-        placement.append(indices)
-        
-        ptr += L
-    placement_tensor = torch.tensor(placement, dtype=torch.long) # (B, T)
-    batch_offsets = torch.stack(batch_offsets)  # (B, T, 2)
-    batch_patch_center = torch.stack(batch_patch_center) # (B, T, 2)
+    mask = np.arange(max_len) < lens[:, None]
 
-    unique_idx = torch.tensor([link_mapper[i] for i in range(len(patches))], dtype=torch.long) # (total_link,)
-    placement_mask = placement_tensor != -1 # (B, T)
-    valid_links_indices = placement_tensor[placement_mask]
-    patch_ids = unique_idx[valid_links_indices]
-
-    mask = np.arange(lens.max()) < lens[:, None]
+    patch_ids = torch.tensor([link_mapper[i] for i in range(len(patches))], dtype=torch.long) # (total_link,)
 
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
     con_links[:, 1:3] = scaler.transform(con_links[:, 1:3])
@@ -194,13 +175,11 @@ def collate_func(data, args, info_all):
 
     linkindex = np.full(mask.shape, fill_value=args.data_config['edges'] + 1, dtype=np.int16)
     linkindex[mask] = np.concatenate(sub_input_tmp)
-    mask_encoder = np.zeros(mask.shape, dtype=np.int16)
-    mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
+    mask_encoder = mask.astype(np.int16)
     return {'links':torch.from_numpy(padded),
             'patches': patch_data,
             'patch_ids': patch_ids,
-            'valid_mask': placement_mask,
-            'mask': mask,
+            'valid_mask': mask,
             'offsets': offset_tensor,
             'patch_center_gps': patch_center_tensor,
             'lens':torch.LongTensor(lens), 
@@ -251,7 +230,7 @@ class BatchSampler:
 
 def load_datadoct_pre(args):
     global info_all
-    transform, grid_index, edgeinfo, nodeinfo, scaler, scaler2, scaler3 = None, None, None, None, None, None, None
+    transform, grid_index, edgeinfo, nodeinfo, scaler, scaler2 = None, None, None, None, None, None
     
     abspath = os.path.join(os.path.dirname(__file__), "data_config.json")
     with open(abspath) as file:
@@ -275,10 +254,7 @@ def load_datadoct_pre(args):
         scaler2.fit([[0, 0, 0, 0]])
         scaler2.mean_ = [-8.62247695, 41.15923239, -8.62256569, 41.15929004]
         scaler2.scale_ = [0.02520552, 0.01236445, 0.02526226, 0.01242564]
-        scaler3 = StandardScaler()
-        scaler3.fit([[0, 0]])
-        scaler3.mean_ = [-8.62247695, 41.15923239]
-        scaler3.scale_ = [0.02520552, 0.01236445]
+
         
     elif "chengdu" in args.dataset:
         scaler = StandardScaler()
@@ -292,7 +268,7 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2, scaler3]
+    info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2]
 
 
 class Datadict(Dataset):

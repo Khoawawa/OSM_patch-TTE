@@ -31,14 +31,6 @@ class OSM_BER_TTE(torch.nn.Module):
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
-    def pooling_sum(self, hiddens, lens):
-        lens = lens.to(hiddens.device)
-        lens = torch.autograd.Variable(torch.unsqueeze(lens, dim=1), requires_grad=False)
-        batch_size = range(hiddens.shape[0])
-        for i in batch_size:
-            hiddens[i, 0] = torch.sum(hiddens[i, :lens[i]], dim=0)
-        return hiddens[list(batch_size), 0]
-    
     def forward(self, input_, args):
         # visual input
         patches = input_['patches']
@@ -56,7 +48,9 @@ class OSM_BER_TTE(torch.nn.Module):
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
         decoder = self.decoder(hiddens, input_['lens'].long()) # (T,B,seq_hidden_dim)
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
-        pooled_decoder = self.pooling_sum(decoder, input_['lens'].long()) # (B,seq_hidden_dim)
+        # sum pooling
+        decoder = decoder * valid_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
+        pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
         # add back the weekrep, daterep, timerep for making model learn time of important events
         pooled_decoder = torch.cat([pooled_decoder, weekrep[:,0], daterep[:,0], timerep[:,0]], dim=-1) # (B,seq_hidden_dim + 33)
         output = self.mlp(pooled_decoder) # (B,1)
