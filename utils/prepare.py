@@ -147,9 +147,7 @@ def collate_func(data, args, info_all):
     offset_tensor = torch.stack([normalized_dx, normalized_dy], dim=1) # (L, 2)
     patch_center_tensor = torch.stack([normed_center_x, normed_center_y], dim=1) # (L, 2)
 
-    max_len = lens.max()
-
-    mask = np.arange(max_len) < lens[:, None]
+    mask = np.arange(lens.max()) < lens[:, None]
 
     patch_ids = torch.tensor([link_mapper[i] for i in range(len(patches))], dtype=torch.long) # (total_link,)
 
