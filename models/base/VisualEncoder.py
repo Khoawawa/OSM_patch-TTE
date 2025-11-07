@@ -108,7 +108,7 @@ class CA_ResnetEncoder(nn.Module):
         attn_out = attn_out.squeeze(1) # (L, 384)
         # map back to grid
         output_grid = torch.zeros(B,T,self.output_dim, device=out.device, dtype=out.dtype)
-        output_grid[valid_mask] = attn_out
+        output_grid[valid_mask] = attn_out.to(output_grid.dtype)
         
         return output_grid
     
