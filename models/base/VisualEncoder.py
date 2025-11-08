@@ -56,7 +56,7 @@ class CA_ResnetEncoder(nn.Module):
         gathered_patch_embs = out[patch_ids] # (total_link, 49, resnet_out)
         # adapter
         adapter_out = self.adapter(gathered_patch_embs) # (L, 49, resnet_out)
-        kv_embs = adapter_out # (L, 49, 2*resnet_out)
+        kv_embs = adapter_out # (L, 49, resnet_out)
         gps_embs = self.gps_pe(patch_center_gps) # (L, 256)
         diff_embs = self.offset_pe(offsets) # # (L, 128)
 
@@ -65,7 +65,7 @@ class CA_ResnetEncoder(nn.Module):
         # cross attention
         if (query_embs.abs() > 1e4).any() or (kv_embs.abs() > 1e4).any():
             print("Extreme values detected (>1e4)")
-            
+
         attn_out = self.ca(query_embs,kv_embs) # (L, 1, 384)
         attn_out = attn_out.squeeze(1) # (L, 384)
         assert torch.isnan(attn_out).any() == False, "nan in attn_out"
