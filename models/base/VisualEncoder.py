@@ -63,6 +63,9 @@ class CA_ResnetEncoder(nn.Module):
         query_embs = torch.cat([gps_embs, diff_embs], dim=-1) # (L, 384)
         query_embs = query_embs.unsqueeze(1) # (L, 1, 384)
         # cross attention
+        if (query_embs.abs() > 1e4).any() or (kv_embs.abs() > 1e4).any():
+            print("Extreme values detected (>1e4)")
+            
         attn_out = self.ca(query_embs,kv_embs) # (L, 1, 384)
         attn_out = attn_out.squeeze(1) # (L, 384)
         assert torch.isnan(attn_out).any() == False, "nan in attn_out"
