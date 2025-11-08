@@ -183,6 +183,7 @@ def collate_func(data, args, info_all):
     linkindex[mask] = np.concatenate(sub_input_tmp)
     mask_encoder = np.zeros(mask.shape, dtype=np.int16)
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
+    
     return {'links':torch.from_numpy(padded),
             'patches': patch_data,
             'patch_ids': patch_ids,
