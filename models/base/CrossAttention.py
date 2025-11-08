@@ -7,7 +7,9 @@ class LayerNormCA(torch.nn.Module):
     def forward(self, query, key_value, attn_mask=None,key_padding_mask=None):
         # implement cross attention mechanism
         fused_feat = self.ca(query, key_value,attn_mask=attn_mask,key_padding_mask=key_padding_mask)
-        return self.ln(fused_feat + query)
+        if torch.isnan(fused_feat).any():
+            print("NaN detected: Output of self.ca is NaN!")
+        return self.ln(fused_feat)
     
 
 class CrossAttention(torch.nn.Module):
