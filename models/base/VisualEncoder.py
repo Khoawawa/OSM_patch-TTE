@@ -65,6 +65,8 @@ class CA_ResnetEncoder(nn.Module):
         # cross attention
         attn_out = self.ca(query_embs,kv_embs) # (L, 1, 384)
         attn_out = attn_out.squeeze(1) # (L, 384)
+        assert torch.isnan(attn_out).any() == False, "nan in attn_out"
+
         # map back to grid
         output_grid = torch.zeros(B,T,self.output_dim, device=out.device, dtype=out.dtype)
         output_grid[valid_mask] = attn_out.to(output_grid.dtype)
