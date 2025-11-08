@@ -308,7 +308,7 @@ def load_datadict(args):
         tdata = np.load(os.path.join(args.absPath,args.data_config['data_dir'], phase + '.npy'), allow_pickle=True)
         data[phase] = tdata
         print(data[phase].shape)
-        if not phase == 'test':
+        if phase == 'train':
             loader[phase] = DataLoader(Datadict(data[phase]), batch_sampler=BatchSampler(data[phase], args.data_config['batch_size']),
                                         collate_fn=lambda x: collate_func(x, args, info_all),
                                         pin_memory=True)
