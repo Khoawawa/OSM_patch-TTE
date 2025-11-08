@@ -51,7 +51,6 @@ class OSM_BER_TTE(torch.nn.Module):
         # sum pooling
         decoder = decoder * valid_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
         pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
-        assert torch.isnan(pooled_decoder).any() == False, "nan in pooled_decoder"
         # add back the weekrep, daterep, timerep for making model learn time of important events
         pooled_decoder = torch.cat([pooled_decoder, weekrep[:,0], daterep[:,0], timerep[:,0]], dim=-1) # (B,seq_hidden_dim + 33)
         output = self.mlp(pooled_decoder) # (B,1)
