@@ -29,7 +29,7 @@ class CA_ResnetEncoder(nn.Module):
         self.output_dim = 128 + 128
         self.adapter = nn.Sequential(
             nn.Linear(self.resnet_out, adapter_hidden_dim),
-            nn.GELU(),
+            nn.LeakyReLU(),
             nn.Dropout(0.1),
             nn.Linear(adapter_hidden_dim, self.resnet_out)
         )
