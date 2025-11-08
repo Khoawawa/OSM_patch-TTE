@@ -1,7 +1,7 @@
 {
   "porto": {
     "data_dir": "mydata",
-    "batch_size": 32,
+    "batch_size": 40,
     "collate_fn": "collate_func",
     "time_mean": 638.7367947002926,
     "time_std": 320.2971819500909,
