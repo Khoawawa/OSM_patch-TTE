@@ -20,5 +20,6 @@ class CrossAttention(torch.nn.Module):
         
     def forward(self, query, key_value, attn_mask=None,key_padding_mask=None):
         # implement cross attention mechanism
-        fused_feat, _ = self.attn(query, key_value, key_value, attn_mask=attn_mask,key_padding_mask=key_padding_mask)
+        with torch.autocast(device_type='cuda', enabled=False):
+            fused_feat, _ = self.attn(query, key_value, key_value, attn_mask=attn_mask,key_padding_mask=key_padding_mask)
         return fused_feat
