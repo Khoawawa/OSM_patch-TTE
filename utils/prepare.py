@@ -136,7 +136,6 @@ def collate_func(data, args, info_all):
     y_centers = torch.tensor(y_centers_list, dtype=torch.float32)
     gps_numpy = np.array(gps_list, dtype=np.float32)
     gps_data = torch.from_numpy(gps_numpy)
-    
     dx = gps_data[:, 0] - x_centers
     dy = gps_data[:, 1] - y_centers
 
@@ -182,7 +181,8 @@ def collate_func(data, args, info_all):
 
     linkindex = np.full(mask.shape, fill_value=args.data_config['edges'] + 1, dtype=np.int16)
     linkindex[mask] = np.concatenate(sub_input_tmp)
-    mask_encoder = mask.astype(np.int16)
+    mask_encoder = np.zeros(mask.shape, dtype=np.int16)
+    mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
     return {'links':torch.from_numpy(padded),
             'patches': patch_data,
             'patch_ids': patch_ids,
