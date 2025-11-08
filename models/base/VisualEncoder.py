@@ -31,10 +31,10 @@ class CA_ResnetEncoder(nn.Module):
             nn.Linear(self.resnet_out, adapter_hidden_dim),
             nn.LeakyReLU(),
             nn.Dropout(0.1),
-            nn.Linear(adapter_hidden_dim, self.resnet_out)
+            nn.Linear(adapter_hidden_dim, self.output_dim)
         )
 
-        self.ca = LayerNormCA(dim_q=self.output_dim,dim_kv=self.resnet_out, num_heads=8,batch_first=batch_first)
+        self.ca = LayerNormCA(dim_q=self.output_dim,dim_kv=self.output_dim, num_heads=8,batch_first=batch_first)
 
     def forward(self, patches, patch_ids, valid_mask, patch_center_gps, offsets):
         # patches: (U, C, H, W)
