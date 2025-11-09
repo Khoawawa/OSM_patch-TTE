@@ -60,7 +60,6 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     steps += truth_data.size(0)
                     
                     features = to_var(features, args.device)
-                    lens = features['lens']
                     
                     targets.append(truth_data.numpy())
                     truth_data = to_var(truth_data, args.device)
@@ -73,6 +72,8 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                         if phase == 'train':    
                             optimizer.zero_grad()
                             scaler.scale(loss).backward()
+                            scaler.unscale_(optimizer)
+                            torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), 50)
                             scaler.step(optimizer)
                             scaler.update()
                     desc = f"loss1: {loss_1.item()}, loss2: {loss_2.item()}"
