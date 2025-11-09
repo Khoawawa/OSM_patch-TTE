@@ -110,7 +110,7 @@ class MultiHeadAttention(nn.Module):
         v = self.v_linear(v)
         S = q.shape[0]
         mask = torch.stack([torch.cat((torch.zeros(i), torch.ones(S - i)), 0) for i in len]).bool().to(k.device)
-        attn_output, attn_output_weights = self.attn_1(q, k, v, key_padding_mask=mask)
+        attn_output, _ = self.attn_1(q, k, v, key_padding_mask=mask)
         return attn_output
 
 
@@ -134,15 +134,15 @@ class FeedForward(nn.Module):
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, heads=1, dropout=0.1):
         super().__init__()
-        self.norm_1 = Norm(d_model) #
-        self.norm_2 = Norm(d_model)
-        self.norm_3 = Norm(d_model)
+        self.norm_1 = nn.LayerNorm(d_model) #
+        self.norm_2 = nn.LayerNorm(d_model)
+        self.norm_3 = nn.LayerNorm(d_model)
 
         self.dropout_1 = nn.Dropout(dropout)    #
         self.dropout_2 = nn.Dropout(dropout)
         self.dropout_3 = nn.Dropout(dropout)
 
-        self.attn_1 = MultiHeadAttention(heads, d_model, dropout=dropout) #
+        #self.attn_1 = MultiHeadAttention(heads, d_model, dropout=dropout)
         self.attn_2 = MultiHeadAttention(heads, d_model, dropout=dropout)
         self.ff = FeedForward(d_model, dropout=dropout)
 

@@ -22,7 +22,7 @@ class CA_ResnetEncoder(nn.Module):
             for param in self.resnet.parameters():
                 param.requires_grad = False
         else:
-            self.resnet_out = 2048  
+            self.resnet_out = 384 
         
         self.offset_pe = PositionalEncoding2D(128)
         self.gps_pe = PositionalEncoding2D(128)
@@ -34,7 +34,7 @@ class CA_ResnetEncoder(nn.Module):
             nn.Linear(adapter_hidden_dim, self.output_dim)
         )
 
-        self.ca = LayerNormCA(dim_q=self.output_dim,dim_kv=self.output_dim, num_heads=8,batch_first=batch_first)
+        self.ca = LayerNormCA(dim_q=self.output_dim,dim_kv=self.output_dim, num_heads=4,batch_first=batch_first)
 
     def forward(self, patches, patch_ids, valid_mask, patch_center_gps, offsets):
         # patches: (U, C, H, W)
@@ -46,28 +46,27 @@ class CA_ResnetEncoder(nn.Module):
         if not self.precomputed:
             out = self.resnet(patches) # (U, resnet_out,7,7)
         else:
-            out = patches # (U, resnet_out,7,7)
+            out = patches # (U, 784, resnet_out)
             
         B, T = valid_mask.shape
-        C,H,W = out.shape[1:]
-
-        out = out.view(out.shape[0], C, H * W).permute(0, 2, 1) # (U, 49, resnet_out)
         
-        gathered_patch_embs = out[patch_ids] # (total_link, 49, resnet_out)
+        gathered_patch_embs = out[patch_ids] # (L, 784, resnet_out)
         # adapter
-        adapter_out = self.adapter(gathered_patch_embs) # (L, 49, resnet_out)
+        adapter_out = self.adapter(gathered_patch_embs) # (L, 784, resnet_out)
         kv_embs = adapter_out # (L, 49, resnet_out)
-        gps_embs = self.gps_pe(patch_center_gps) # (L, 256)
+        kv_norm = torch.nn.functional.normalize(kv_embs,dim=-1)
+        
+        gps_embs = self.gps_pe(patch_center_gps) # (L, 128)
         diff_embs = self.offset_pe(offsets) # # (L, 128)
 
-        query_embs = torch.cat([gps_embs, diff_embs], dim=-1) # (L, 384)
-        query_embs = query_embs.unsqueeze(1) # (L, 1, 384)
+        query_embs = torch.cat([gps_embs, diff_embs], dim=-1) # (L, 256)
+        query_embs = query_embs.unsqueeze(1) # (L, 1, 256)
         # cross attention
         if (query_embs.abs() > 1e4).any() or (kv_embs.abs() > 1e4).any():
             print("Extreme values detected (>1e4)")
 
-        attn_out = self.ca(query_embs,kv_embs) # (L, 1, 384)
-        attn_out = attn_out.squeeze(1) # (L, 384)
+        attn_out = self.ca(query_embs,kv_embs) # (L, 1, 256)
+        attn_out = attn_out.squeeze(1) # (L, 256)
         assert torch.isnan(attn_out).any() == False, "nan in attn_out"
 
         # map back to grid
