@@ -54,12 +54,11 @@ class CA_ResnetEncoder(nn.Module):
         # adapter
         adapter_out = self.adapter(gathered_patch_embs) # (L, 784, resnet_out)
         kv_embs = adapter_out # (L, 49, resnet_out)
-        kv_norm = torch.nn.functional.normalize(kv_embs,dim=-1)
-        
-        gps_embs = self.gps_pe(patch_center_gps) # (L, 128)
-        diff_embs = self.offset_pe(offsets) # # (L, 128)
 
-        query_embs = torch.cat([gps_embs, diff_embs], dim=-1) # (L, 256)
+        gps_embs = self.gps_pe(patch_center_gps) # (L, 128)
+        offset_embs = self.offset_pe(offsets) # # (L, 128)
+
+        query_embs = torch.cat([gps_embs, offset_embs], dim=-1) # (L, 256)
         query_embs = query_embs.unsqueeze(1) # (L, 1, 256)
         # cross attention
         if (query_embs.abs() > 1e4).any() or (kv_embs.abs() > 1e4).any():
