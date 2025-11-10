@@ -9,7 +9,7 @@ from models.base.PositionalEncoding import PositionalEncoding2D
 batch_first=True
 
 class CA_ResnetEncoder(nn.Module):
-    def __init__(self, adapter_hidden_dim=512, use_precomputed=False):
+    def __init__(self, adapter_hidden_dim=512, topk=64, use_precomputed=False):
         super().__init__()
         self.precomputed = use_precomputed
 
@@ -26,7 +26,7 @@ class CA_ResnetEncoder(nn.Module):
         
         self.offset_pe = PositionalEncoding2D(128)
         self.gps_pe = PositionalEncoding2D(128)
-        self.output_dim = 128 + 128
+        self.output_dim = 256
         self.adapter = nn.Sequential(
             nn.Linear(self.resnet_out, adapter_hidden_dim),
             nn.LeakyReLU(),
@@ -35,7 +35,35 @@ class CA_ResnetEncoder(nn.Module):
         )
 
         self.ca = LayerNormCA(dim_q=self.output_dim,dim_kv=self.output_dim, num_heads=4,batch_first=batch_first)
-
+        
+        self.topk = topk
+    def get_offset_patch_embs(self, patches, offsets):
+        # patches: (L, 784, resnet_out)
+        # offsets: (L, 2)
+        _, U, D = patches.shape
+        H = W = int(U ** 0.5)
+        center_i = H // 2
+        center_j = W // 2
+        
+        dx = offsets[:,0]
+        dy = offsets[:,1]
+        
+        i_t = (center_i + dy).clamp(0,H-1)
+        j_t = (center_j + dx).clamp(0,W-1)
+        
+        idx_flat = (i_t * W + j_t).long() # (L,1)
+        
+        patch_vectors = torch.gather(
+            patches, 1, idx_flat.unsqueeze(-1).expand(-1,-1,D)
+        ) # (L,1,D)
+        
+        return patch_vectors
+    def calc_cosine_sim(self, x1, x2):
+        x1_norm = torch.nn.functional.normalize(x1, dim=-1)
+        x2_norm = torch.nn.functional.normalize(x2, dim=-1)
+        sim = torch.bmm(x1_norm, x2_norm.transpose(1,2)).squeeze(1)
+        return sim # (L,784)
+    
     def forward(self, patches, patch_ids, valid_mask, patch_center_gps, offsets):
         # patches: (U, C, H, W)
         # patch_ids: (total_link,)
@@ -52,27 +80,26 @@ class CA_ResnetEncoder(nn.Module):
         
         gathered_patch_embs = out[patch_ids] # (L, 784, resnet_out)
         # adapter
-        adapter_out = self.adapter(gathered_patch_embs) # (L, 784, resnet_out)
-        kv_embs = adapter_out # (L, 49, resnet_out)
-
-        gps_embs = self.gps_pe(patch_center_gps) # (L, 128)
-        offset_embs = self.offset_pe(offsets) # # (L, 128)
-
-        query_embs = torch.cat([gps_embs, offset_embs], dim=-1) # (L, 256)
-        query_embs = query_embs.unsqueeze(1) # (L, 1, 256)
-        # cross attention
-        if (query_embs.abs() > 1e4).any() or (kv_embs.abs() > 1e4).any():
-            print("Extreme values detected (>1e4)")
-
-        attn_out = self.ca(query_embs,kv_embs) # (L, 1, 256)
-        attn_out = attn_out.squeeze(1) # (L, 256)
+        adapter_out = self.adapter(gathered_patch_embs) # (L, 784, O)
+        # get query patch
+        query_patch = self.get_offset_patch_embs(adapter_out, offsets) # (L, 1, O)
+        # topk cosine similarity
+        sim = self.calc_cosine_sim(query_patch, adapter_out) # (L, 784)
+        _, indices = torch.topk(sim, self.topk, dim=1) # (L, topk)
+        kv_patches = torch.gather(
+            adapter_out, 1, indices.unsqueeze(-1).expand(-1,-1,adapter_out.shape[-1])
+        ) # (L, topk, resnet_out)
+        
+        attn_out = self.ca(query_patch,kv_patches) # (L, 1, O)
+        attn_out = attn_out.squeeze(1) # (L, O)
+        
         assert torch.isnan(attn_out).any() == False, "nan in attn_out"
 
         # map back to grid
         output_grid = torch.zeros(B,T,self.output_dim, device=out.device, dtype=out.dtype)
         output_grid[valid_mask] = attn_out.to(output_grid.dtype)
         
-        return output_grid
+        return output_grid # (B, T, O)
     
 
 class FiLm_ResnetEncoder(nn.Module):

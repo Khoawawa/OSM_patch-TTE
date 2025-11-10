@@ -16,7 +16,7 @@ batch_first = False
 # then they are fed into a cross attention fusion block
 # then go into mlp to extract the time#
 class OSM_BER_TTE(torch.nn.Module):
-    def __init__(self, adapter_hidden_dim,use_precomputed,
+    def __init__(self, adapter_hidden_dim,topk,use_precomputed,
                  seq_hidden_dim, seq_layer,
                  decoder_layer,
                  bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
@@ -116,7 +116,7 @@ class MultiHeadAttention(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, d_model, d_ff=1024, dropout=0.1):
+    def __init__(self, d_model, d_ff=512, dropout=0.1):
         super().__init__()
 
         # We set d_ff as a default to 2048
