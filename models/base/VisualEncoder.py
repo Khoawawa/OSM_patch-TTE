@@ -23,9 +23,7 @@ class CA_ResnetEncoder(nn.Module):
                 param.requires_grad = False
         else:
             self.resnet_out = 384 
-        
-        self.offset_pe = PositionalEncoding2D(128)
-        self.gps_pe = PositionalEncoding2D(128)
+
         self.output_dim = 256
         self.adapter = nn.Sequential(
             nn.Linear(self.resnet_out, adapter_hidden_dim),
