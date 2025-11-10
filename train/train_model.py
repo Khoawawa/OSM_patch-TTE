@@ -110,7 +110,6 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                 
                 msg.append(f"{phase} epoch: {epoch}, {phase} loss: {running_loss[phase] / steps}\n {scores}\n")
                 if phase == 'val':
-                    scheduler.step(running_loss['val'] / steps)
                     current_lr = optimizer.param_groups[0]['lr']
                     print(f"Current LR: {current_lr:.6e}")
                     if scores['MAE'] < best_mae:
@@ -128,7 +127,7 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
 
                         print(f"Current MAE {scores['MAE']} more than best MAE {best_mae}")
 
-            # scheduler.step(running_loss_R['val'])
+            scheduler.step(running_loss['val'])
     finally:
         time_elapsed = time.perf_counter() - since
         print(f"cost {time_elapsed} seconds")
