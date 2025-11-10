@@ -49,10 +49,10 @@ class CA_ResnetEncoder(nn.Module):
         i_t = (center_i + dy).clamp(0,H-1)
         j_t = (center_j + dx).clamp(0,W-1)
         
-        idx_flat = (i_t * W + j_t).long() # (L,1)
+        idx_flat = (i_t * W + j_t).long() # (L,)
         
         patch_vectors = torch.gather(
-            patches, 1, idx_flat.unsqueeze(-1).expand(-1,-1,D)
+            patches, 1, idx_flat.unsqueeze(-1).unsqueeze(-1).expand(-1,-1,D) # (L,) -> (L,1,1) 
         ) # (L,1,D)
         
         return patch_vectors
