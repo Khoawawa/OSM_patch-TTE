@@ -87,7 +87,7 @@ class CA_ResnetEncoder(nn.Module):
         #     adapter_out, 1, indices.unsqueeze(-1).expand(-1,-1,adapter_out.shape[-1])
         # ) # (L, topk, resnet_out)
         
-        attn_out = self.ca(query_patch,gathered_patch_embs) # (L, 1, O)
+        attn_out = self.ca(query_patch,adapter_out) # (L, 1, O)
         attn_out = attn_out.squeeze(1) # (L, O)
         
         assert torch.isnan(attn_out).any() == False, "nan in attn_out"
