@@ -58,9 +58,7 @@ class CA_ResnetEncoder(nn.Module):
         
         return patch_vectors
     def calc_cosine_sim(self, x1, x2):
-        x1_norm = torch.nn.functional.normalize(x1, dim=-1)
-        x2_norm = torch.nn.functional.normalize(x2, dim=-1)
-        sim = F.cosine_similarity(x1_norm, x2_norm, dim=2)
+        sim = F.cosine_similarity(x1, x2, dim=2)
         return sim # (L,784)
     
     def forward(self, patches, patch_ids, valid_mask, patch_center_gps, offsets):
