@@ -38,11 +38,12 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
     save_dict, best_mae = {'state_dict': copy.deepcopy(model.state_dict()),
                            'epoch': 0
                            }, 10000    
-    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=.2, patience=2,
-    #                                                  threshold=1e-2, threshold_mode='rel', min_lr=1e-7)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=.2, patience=2,
+                                                     threshold=1e-2, threshold_mode='rel', min_lr=1e-7)
+    if hasattr(args, 'scheduler_state_dict'):
+        scheduler.load_state_dict(args.scheduler_state_dict)
     scaler = torch.amp.GradScaler()
     try:
-        patiance = 0
         for epoch in range(start_epoch + 1, num_epochs):
             running_loss = {phase: 0.0 for phase in phases}
             msg = []
@@ -109,23 +110,24 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                 
                 msg.append(f"{phase} epoch: {epoch}, {phase} loss: {running_loss[phase] / steps}\n {scores}\n")
                 if phase == 'val':
+                    scheduler.step(running_loss['val'] / steps)
+                    current_lr = optimizer.param_groups[0]['lr']
+                    print(f"Current LR: {current_lr:.6e}")
                     if scores['MAE'] < best_mae:
                         best_mae = scores['MAE']
                         save_dict.update(
                             state_dict=copy.deepcopy(model.state_dict()),
                             epoch=epoch,
-                            optimizer_state_dict=copy.deepcopy(optimizer.state_dict())
+                            optimizer_state_dict=copy.deepcopy(optimizer.state_dict()),
+                            scheduler_state_dict=copy.deepcopy(scheduler.state_dict())
                         )
                         save_model(f"{model_folder}/best_model.pkl", **save_dict)
                         
-                        patiance = 0
-                    else:
-                        patiance += 1
-                        print(f"Current MAE {scores['MAE']} more than best MAE {best_mae}, patience: {patiance}")
 
-            if patiance >= args.patience:
-                print(f"Early stop! best MAE: {best_mae}")
-                break
+                    else:
+
+                        print(f"Current MAE {scores['MAE']} more than best MAE {best_mae}")
+
             # scheduler.step(running_loss_R['val'])
     finally:
         time_elapsed = time.perf_counter() - since
@@ -136,4 +138,5 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                    **{'state_dict': copy.deepcopy(model.state_dict()),
                       'epoch': epoch,
                       'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
+                      'scheduler_state_dict': copy.deepcopy(scheduler.state_dict())
                       })

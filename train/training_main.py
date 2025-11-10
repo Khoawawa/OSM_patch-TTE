@@ -103,6 +103,7 @@ def train_main(args):
         start_epoch = final_model['epoch']
         model.load_state_dict(final_model['state_dict'], strict=False)
         optimizer.load_state_dict(final_model['optimizer_state_dict'])
+        args.scheduler_state_dict = final_model['scheduler_state_dict']
         
         train_model(model=model, data_loaders=data_loaders,
                     loss_func=loss_func, optimizer=optimizer,

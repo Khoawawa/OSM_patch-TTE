@@ -48,6 +48,7 @@ class OSM_BER_TTE(torch.nn.Module):
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
         decoder = self.decoder(hiddens, input_['lens'].long()) # (T,B,seq_hidden_dim)
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
+        assert torch.isnan(decoder).sum() == 0, "decoder has nan"
         # sum pooling
         decoder = decoder * valid_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
         pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
