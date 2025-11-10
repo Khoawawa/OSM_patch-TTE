@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from transformers import CLIPProcessor, CLIPVisionModel
 from torchvision.models import resnet50
 from models.base.CrossAttention import LayerNormCA
@@ -59,7 +60,7 @@ class CA_ResnetEncoder(nn.Module):
     def calc_cosine_sim(self, x1, x2):
         x1_norm = torch.nn.functional.normalize(x1, dim=-1)
         x2_norm = torch.nn.functional.normalize(x2, dim=-1)
-        sim = torch.bmm(x1_norm, x2_norm.transpose(1,2)).squeeze(1)
+        sim = F.cosine_similarity(x1_norm, x2_norm, dim=2)
         return sim # (L,784)
     
     def forward(self, patches, patch_ids, valid_mask, patch_center_gps, offsets):
