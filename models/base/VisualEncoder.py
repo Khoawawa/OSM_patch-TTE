@@ -23,7 +23,7 @@ class CA_ResnetEncoder(nn.Module):
             for param in self.resnet.parameters():
                 param.requires_grad = False
         else:
-            self.resnet_out = 384 
+            self.resnet_out = 2048 
 
         self.output_dim = 256
         self.adapter = nn.Sequential(
@@ -59,7 +59,7 @@ class CA_ResnetEncoder(nn.Module):
         return patch_vectors
     def calc_cosine_sim(self, x1, x2):
         sim = F.cosine_similarity(x1, x2, dim=2)
-        return sim # (L,784)
+        return sim # (L,49)
     
     def forward(self, patches, patch_ids, valid_mask, patch_center_gps, offsets):
         # patches: (U, C, H, W)
@@ -71,7 +71,7 @@ class CA_ResnetEncoder(nn.Module):
         if not self.precomputed:
             out = self.resnet(patches) # (U, resnet_out,7,7)
         else:
-            out = patches # (U, 784, resnet_out)
+            out = patches.flatten(2).transpose(1,2) # (U, 49, resnet_out)
             
         B, T = valid_mask.shape
         
@@ -81,13 +81,13 @@ class CA_ResnetEncoder(nn.Module):
         # get query patch
         query_patch = self.get_offset_patch_embs(adapter_out, offsets) # (L, 1, O)
         # topk cosine similarity
-        sim = self.calc_cosine_sim(query_patch, adapter_out) # (L, 784)
-        _, indices = torch.topk(sim, self.topk, dim=1) # (L, topk)
-        kv_patches = torch.gather(
-            adapter_out, 1, indices.unsqueeze(-1).expand(-1,-1,adapter_out.shape[-1])
-        ) # (L, topk, resnet_out)
+        # sim = self.calc_cosine_sim(query_patch, adapter_out) # (L, 784)
+        # _, indices = torch.topk(sim, self.topk, dim=1) # (L, topk)
+        # kv_patches = torch.gather(
+        #     adapter_out, 1, indices.unsqueeze(-1).expand(-1,-1,adapter_out.shape[-1])
+        # ) # (L, topk, resnet_out)
         
-        attn_out = self.ca(query_patch,kv_patches) # (L, 1, O)
+        attn_out = self.ca(query_patch,gathered_patch_embs) # (L, 1, O)
         attn_out = attn_out.squeeze(1) # (L, O)
         
         assert torch.isnan(attn_out).any() == False, "nan in attn_out"
