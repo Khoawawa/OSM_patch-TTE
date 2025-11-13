@@ -50,7 +50,9 @@ class OSM_BER_TTE(torch.nn.Module):
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
         if torch.isnan(decoder).sum() > 0:
             print("NaN detected in decoder, replacing with 0")
+            print(torch.where(torch.isnan(decoder), 1, 0).sum())
             decoder = torch.nan_to_num(decoder, 0.0)
+            
         assert torch.isnan(decoder).sum() == 0, "decoder has nan"
         # sum pooling
         decoder = decoder * valid_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
