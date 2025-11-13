@@ -25,7 +25,7 @@ class CA_ResnetEncoder(nn.Module):
         else:
             self.resnet_out = 2048 
 
-        self.output_dim = 256
+        self.output_dim = 496
         self.adapter = nn.Sequential(
             nn.Linear(self.resnet_out, adapter_hidden_dim),
             nn.LeakyReLU(),
@@ -33,7 +33,7 @@ class CA_ResnetEncoder(nn.Module):
             nn.Linear(adapter_hidden_dim, self.output_dim)
         )
         self.pos_encoder = PositionalEncoding2D(16)
-        self.ca = LayerNormCA(dim_q=self.output_dim+16,dim_kv=self.output_dim+16, num_heads=4,batch_first=batch_first)
+        self.ca = LayerNormCA(dim_q=self.output_dim+16,dim_kv=self.output_dim+16, num_heads=8,batch_first=batch_first)
         
         self.topk = topk
     def calc_offsets(self, patches):
