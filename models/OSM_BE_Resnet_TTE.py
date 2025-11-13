@@ -46,6 +46,7 @@ class OSM_BER_TTE(torch.nn.Module):
         representation = torch.cat([visual_output, ctx_output], dim=-1) # (B,T,Res + Ctx)
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
+        assert not torch.isnan(representation).any(), "representation has nan"
         decoder = self.decoder(hiddens, input_['lens'].long()) # (T,B,seq_hidden_dim)
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
         if torch.isnan(decoder).sum() > 0:
@@ -115,7 +116,8 @@ class MultiHeadAttention(nn.Module):
         q = self.q_linear(q)
         v = self.v_linear(v)
         S = q.shape[0]
-        mask = torch.stack([torch.cat((torch.zeros(i), torch.ones(S - i)), 0) for i in len]).bool().to(k.device)
+        mask = torch.arange(max(len)).unsqueeze(0) < torch.tensor(len).unsqueeze(1)
+        mask = mask.to(q.device)
         attn_output, _ = self.attn_1(q, k, v, key_padding_mask=mask)
         return attn_output
 
