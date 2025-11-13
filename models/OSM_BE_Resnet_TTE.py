@@ -46,7 +46,6 @@ class OSM_BER_TTE(torch.nn.Module):
         representation = torch.cat([visual_output, ctx_output], dim=-1) # (B,T,Res + Ctx)
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
-        assert not torch.isnan(hiddens).any(), "hidden has nan"
         # decoder = self.decoder(hiddens, input_['lens'].long()) # (T,B,seq_hidden_dim)
         # if torch.isnan(decoder).sum() > 0:
         with torch.amp.autocast(enabled=False):
