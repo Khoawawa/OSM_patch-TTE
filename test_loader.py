@@ -6,7 +6,6 @@ import json
 import pickle
 from types import SimpleNamespace
 from models.base.ContextEncoder import ContextEncoder
-from models.VideoMae import ViTEncoder
 from utils.util import to_var
 grid_index, edgeinfo, nodeinfo, scaler, scaler2 = None, None, None, None, None
 args = SimpleNamespace(
@@ -42,10 +41,11 @@ transform = prep.get_transform()
 grid_index = build_grid_index(patch_json, args.data_config['patch']['patch_size'])
 prep.info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2]
 
-loader,scaler_temp = load_datadict(args)
+# loader,scaler_temp = load_datadict(args)
 
-data, _ = next(iter(loader['train']))
-to_var(data,'cpu')
+# data, _ = next(iter(loader['train']))
+# to_var(data,'cpu')
+print(edgeinfo[0])
 # visual_model = ViTEncoder()
 # context_model = ContextEncoder(8,64,26529+1,4)
 # ca_model = CrossAttention(dim_q=visual_model.hidden_size, dim_kv=context_model.hidden_size, num_heads=8)

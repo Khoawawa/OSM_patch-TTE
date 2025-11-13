@@ -22,7 +22,7 @@ class OSM_BER_TTE(torch.nn.Module):
                  bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
         super().__init__()
         self.visual_encoder = CA_ResnetEncoder(adapter_hidden_dim,use_precomputed=use_precomputed)
-        visual_out_dim = self.visual_encoder.output_dim # 384
+        visual_out_dim = self.visual_encoder.output_dim + 16 # 384
         self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
         self.temporal_block = LayerNormGRU(input_dim=visual_out_dim + self.context_encoder.hidden_size, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
@@ -36,10 +36,9 @@ class OSM_BER_TTE(torch.nn.Module):
         patches = input_['patches']
         patch_ids = input_['patch_ids']
         valid_mask = input_['valid_mask']
-        patch_center_gps = input_['patch_center_gps']
         diff = input_['offsets']
         # visual output
-        visual_output = self.visual_encoder(patches,patch_ids,valid_mask,patch_center_gps,diff) # (B, T, 384)
+        visual_output = self.visual_encoder(patches,patch_ids,valid_mask,diff) # (B, T, 384)
         # context output
         ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
         # temporal sendoff
@@ -53,13 +52,13 @@ class OSM_BER_TTE(torch.nn.Module):
             decoder = self.decoder(hiddens.float(), input_['lens'].long())
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
             
-        assert torch.isnan(decoder).sum() == 0, "decoder has nan"
         # sum pooling
         decoder = decoder * valid_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
         pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
         # add back the weekrep, daterep, timerep for making model learn time of important events
         pooled_decoder = torch.cat([pooled_decoder, weekrep[:,0], daterep[:,0], timerep[:,0]], dim=-1) # (B,seq_hidden_dim + 33)
         output = self.mlp(pooled_decoder) # (B,1)
+        output = args.scaler.inverse_transform(output)
         return output, loss_1
 
 class Norm(nn.Module):

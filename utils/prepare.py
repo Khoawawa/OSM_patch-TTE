@@ -142,11 +142,8 @@ def collate_func(data, args, info_all):
     normalized_dx = 2 * dx / patch_size
     normalized_dy = 2 * dy / patch_size
 
-    normed_center_x = x_centers / 90.0
-    normed_center_y = y_centers / 180.0
 
     offset_tensor = torch.stack([normalized_dx, normalized_dy], dim=1) # (L, 2)
-    patch_center_tensor = torch.stack([normed_center_x, normed_center_y], dim=1) # (L, 2)
 
     mask = np.arange(lens.max()) < lens[:, None]
 
@@ -189,7 +186,6 @@ def collate_func(data, args, info_all):
             'patch_ids': patch_ids,
             'valid_mask': mask,
             'offsets': offset_tensor,
-            'patch_center_gps': patch_center_tensor,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
             'mask_label': torch.LongTensor(mask_label),

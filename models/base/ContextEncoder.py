@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from transformers import BertConfig, BertForMaskedLM
-from models.base.LayerNormGRU import LayerNormGRU
 
 
 class ContextEncoder(nn.Module):
@@ -14,6 +13,7 @@ class ContextEncoder(nn.Module):
 
         self.highwayembed = nn.Embedding(15, 5, padding_idx=0)
         self.gpsembed = nn.Linear(4,16)
+        self.distembed = nn.Linear(1, 4)
         self.weekembed = nn.Embedding(8, 3)
         self.dateembed = nn.Embedding(367, 10)
         self.timeembed = nn.Embedding(1441, 20)
