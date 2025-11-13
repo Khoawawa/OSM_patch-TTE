@@ -115,8 +115,9 @@ class MultiHeadAttention(nn.Module):
         k = self.k_linear(k)
         q = self.q_linear(q)
         v = self.v_linear(v)
-
-        mask = torch.arange(max(len)).unsqueeze(0) < torch.tensor(len).unsqueeze(1)
+        device = len.device
+        max_len = torch.max(len).item()
+        mask = torch.arange(max_len, device=device).unsqueeze(0) < len.unsqueeze(1)
         mask = mask.to(q.device)
         attn_output, _ = self.attn_1(q, k, v, key_padding_mask=mask)
         return attn_output
