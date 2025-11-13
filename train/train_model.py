@@ -42,6 +42,7 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
     #                                                  threshold=1e-2, threshold_mode='rel', min_lr=1e-7)
     # if hasattr(args, 'scheduler_state_dict'):
     #     scheduler.load_state_dict(args.scheduler_state_dict)
+    print("LR: ", optimizer.param_groups[0]['lr'])
     scaler = torch.amp.GradScaler()
     try:
         for epoch in range(start_epoch + 1, num_epochs):
