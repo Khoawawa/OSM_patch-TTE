@@ -48,7 +48,8 @@ class OSM_BER_TTE(torch.nn.Module):
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
         # decoder = self.decoder(hiddens, input_['lens'].long()) # (T,B,seq_hidden_dim)
         # if torch.isnan(decoder).sum() > 0:
-        with torch.amp.autocast(enabled=False):
+        device_type = "cuda" if hiddens.is_cuda else "cpu"
+        with torch.amp.autocast(device_type=device_type, enabled=False):
             decoder = self.decoder(hiddens.float(), input_['lens'].long())
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
             
