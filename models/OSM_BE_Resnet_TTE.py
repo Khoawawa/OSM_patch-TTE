@@ -46,13 +46,12 @@ class OSM_BER_TTE(torch.nn.Module):
         representation = torch.cat([visual_output, ctx_output], dim=-1) # (B,T,Res + Ctx)
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
-        assert not torch.isnan(representation).any(), "representation has nan"
+        assert not torch.isnan(hiddens).any(), "hidden has nan"
         decoder = self.decoder(hiddens, input_['lens'].long()) # (T,B,seq_hidden_dim)
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
         if torch.isnan(decoder).sum() > 0:
             print("NaN detected in decoder, replacing with 0")
             print(torch.where(torch.isnan(decoder), 1, 0).sum())
-            decoder = torch.nan_to_num(decoder, 0.0)
             
         assert torch.isnan(decoder).sum() == 0, "decoder has nan"
         # sum pooling
