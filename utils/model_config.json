@@ -48,7 +48,7 @@
         "bert_hidden_layers":4
     },
     "OSM_BER_TTE_CA_precomputed_v2":{
-        "adapter_hidden_dim":512,
+        "adapter_hidden_dim":64,
         "topk":64,
         "use_precomputed": true,
         "seq_hidden_dim": 128,
