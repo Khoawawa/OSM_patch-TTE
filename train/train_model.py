@@ -75,7 +75,7 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                             optimizer.zero_grad()
                             scaler.scale(loss).backward()
                             scaler.unscale_(optimizer)
-                            torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), 50)
+                            torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), 10.0)
                             scaler.step(optimizer)
                             scaler.update()
                     desc = f"loss1: {loss_1.item()}, loss2: {loss_2.item()}"
