@@ -167,13 +167,11 @@ class Decoder(nn.Module):
         super().__init__()
         self.N = N
         self.layers = get_clones(DecoderLayer(d_model, heads, dropout), N)
-        self.norm = Norm(d_model)
+        self.norm = nn.LayerNorm(d_model)
 
     def forward(self, x, lens):
         for i in range(self.N):
             x = self.layers[i](x, lens)
-            if torch.isnan(x).sum() > 0:
-                print(f"Layer {i} output NaN count: {torch.isnan(x).sum().item()}")
         return self.norm(x)
 
 
