@@ -34,7 +34,7 @@ class CA_ResnetEncoder(nn.Module):
         )
         self.pos_encoder = PositionalEncoding2D(16)
         self.ca = LayerNormCA(dim_q=self.output_dim+16,dim_kv=self.output_dim+16, num_heads=4,batch_first=batch_first)
-        
+        self.ca_dropout = nn.Dropout(0.1)
         self.topk = topk
     def calc_offsets(self, patches):
         _, U, _ = patches.shape
@@ -107,6 +107,7 @@ class CA_ResnetEncoder(nn.Module):
         # slice to remove PE
         attn_out = attn_out.squeeze(1) # (L, O + PE)
         attn_out = attn_out[:, :self.output_dim] # (L, O)
+        attn_out = self.ca_dropout(attn_out) # (L, O)
         assert torch.isnan(attn_out).any() == False, "nan in attn_out"
 
         # map back to grid
