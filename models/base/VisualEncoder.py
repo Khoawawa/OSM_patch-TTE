@@ -25,15 +25,15 @@ class CA_ResnetEncoder(nn.Module):
         else:
             self.resnet_out = 2048 
 
-        self.output_dim = 496
+        self.output_dim = 240
         self.adapter = nn.Sequential(
             nn.Linear(self.resnet_out, adapter_hidden_dim),
-            nn.LeakyReLU(),
+            nn.GELU(),
             nn.Dropout(0.1),
             nn.Linear(adapter_hidden_dim, self.output_dim)
         )
         self.pos_encoder = PositionalEncoding2D(16)
-        self.ca = LayerNormCA(dim_q=self.output_dim+16,dim_kv=self.output_dim+16, num_heads=8,batch_first=batch_first)
+        self.ca = LayerNormCA(dim_q=self.output_dim+16,dim_kv=self.output_dim+16, num_heads=4,batch_first=batch_first)
         
         self.topk = topk
     def calc_offsets(self, patches):
@@ -77,11 +77,7 @@ class CA_ResnetEncoder(nn.Module):
 
         patch_vectors = torch.cat([patch_vectors, pe], dim=-1)
 
-        return patch_vectors.unsqueeze(1) # (L, 1, resnet_out + PE)
-    def calc_cosine_sim(self, x1, x2):
-        sim = F.cosine_similarity(x1, x2, dim=2)
-        return sim # (L,49)
-    
+        return patch_vectors.unsqueeze(1) # (L, 1, resnet_out + PE)    
     def forward(self, patches, patch_ids, valid_mask, offsets):
         # patches: (U, C, H, W)
         # patch_ids: (total_link,)
@@ -99,23 +95,18 @@ class CA_ResnetEncoder(nn.Module):
         # adapter
         adapter_out = self.adapter(gathered_patch_embs) # (L, 49, O)
         # get offset and perform positional encoding
-        whole_offsets = self.calc_offsets(adapter_out) # (49, 2)
-        whole_offsets = self.pos_encoder(whole_offsets) # (49, PE)
-        whole_offsets = whole_offsets.unsqueeze(0) # (1, 49, PE)
-        whole_offsets = whole_offsets.expand(adapter_out.shape[0],-1,-1) # (L, 49, PE)
-        kv_patches = torch.cat([adapter_out, whole_offsets], dim=-1) # (L, 49, resnet_out + PE)
+        kv_pe = self.calc_offsets(adapter_out) # (49, 2)
+        kv_pe = self.pos_encoder(kv_pe) # (49, PE)
+        kv_pe = kv_pe.unsqueeze(0) # (1, 49, PE)
+        kv_pe = kv_pe.expand(adapter_out.shape[0],-1,-1) # (L, 49, PE)
+        kv_patches = torch.cat([adapter_out, kv_pe], dim=-1) # (L, 49, resnet_out + PE)
         # get query patch
         query_patch = self.get_offset_patch_embs(adapter_out, offsets) # (L, 1, resnet_out + PE)
-        # topk cosine similarity
-        # sim = self.calc_cosine_sim(query_patch, adapter_out) # (L, 784)
-        # _, indices = torch.topk(sim, self.topk, dim=1) # (L, topk)
-        # kv_patches = torch.gather(
-        #     adapter_out, 1, indices.unsqueeze(-1).expand(-1,-1,adapter_out.shape[-1])
-        # ) # (L, topk, resnet_out)
-        
-        attn_out = self.ca(query_patch,kv_patches) # (L, 1, O)
-        attn_out = attn_out.squeeze(1) # (L, O)
-        
+        # cross-attention
+        attn_out = self.ca(query_patch,kv_patches) # (L, 1, O + PE)
+        # slice to remove PE
+        attn_out = attn_out.squeeze(1) # (L, O + PE)
+        attn_out = attn_out[:, :self.output_dim] # (L, O)
         assert torch.isnan(attn_out).any() == False, "nan in attn_out"
 
         # map back to grid
