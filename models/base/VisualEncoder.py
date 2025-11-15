@@ -34,7 +34,7 @@ class CA_ResnetEncoder(nn.Module):
         )
         self.adapter_norm = nn.LayerNorm(self.resnet_out)
         # self.pos_encoder = PositionalEncoding2D(16)
-        self.ca = LayerNormCA(dim_q = self.resnet_out, dim_kv = self.resnet_out, num_heads=4,batch_first=batch_first)
+        self.ca = LayerNormCA(d_model= self.resnet_out, d_context = self.resnet_out, num_heads=4,batch_first=batch_first)
         # self.ca_dropout = nn.Dropout(0.1)
         self.topk = topk
     def calc_offsets(self, patches):
