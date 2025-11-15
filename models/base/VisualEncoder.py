@@ -25,16 +25,17 @@ class CA_ResnetEncoder(nn.Module):
         else:
             self.resnet_out = 2048 
 
-        self.output_dim = 256
+        self.output_dim = self.resnet_out
         self.adapter = nn.Sequential(
             nn.Linear(self.resnet_out, adapter_hidden_dim),
-            nn.GELU(),
+            nn.LeakyReLU(),
             nn.Dropout(0.1),
-            nn.Linear(adapter_hidden_dim, self.output_dim)
+            nn.Linear(adapter_hidden_dim, self.resnet_out)
         )
-        self.pos_encoder = PositionalEncoding2D(16)
-        self.ca = LayerNormCA(dim_q=self.output_dim,dim_kv=self.output_dim, num_heads=4,batch_first=batch_first)
-        self.ca_dropout = nn.Dropout(0.1)
+        self.adapter_norm = nn.LayerNorm(self.resnet_out)
+        # self.pos_encoder = PositionalEncoding2D(16)
+        self.ca = LayerNormCA(dim_q = self.resnet_out, dim_kv = self.resnet_out, num_heads=4,batch_first=batch_first)
+        # self.ca_dropout = nn.Dropout(0.1)
         self.topk = topk
     def calc_offsets(self, patches):
         _, U, _ = patches.shape
@@ -92,23 +93,23 @@ class CA_ResnetEncoder(nn.Module):
         B, T = valid_mask.shape
         
         gathered_patch_embs = out[patch_ids] # (L, 49, resnet_out)
+        adapter_in = self.adapater_norm(gathered_patch_embs)
         # adapter
-        adapter_out = self.adapter(gathered_patch_embs) # (L, 49, O)
+        kv_patches = self.adapter(adapter_in) + gathered_patch_embs # (L, 49, O)
         # get offset and perform positional encoding
         # kv_pe = self.calc_offsets(adapter_out) # (49, 2)
         # kv_pe = self.pos_encoder(kv_pe) # (49, PE)
         # kv_pe = kv_pe.unsqueeze(0) # (1, 49, PE)
         # kv_pe = kv_pe.expand(adapter_out.shape[0],-1,-1) # (L, 49, PE)
         # kv_patches = torch.cat([adapter_out, kv_pe], dim=-1) # (L, 49, resnet_out + PE)
-        kv_patches = adapter_out
         # get query patch
-        query_patch = self.get_offset_patch_embs(adapter_out, offsets) # (L, 1, resnet_out + PE)
+        query_patch = self.get_offset_patch_embs(kv_patches, offsets) # (L, 1, resnet_out + PE)
         # cross-attention
         attn_out = self.ca(query_patch,kv_patches) # (L, 1, O + PE)
         # slice to remove PE
         attn_out = attn_out.squeeze(1) # (L, O + PE)
         # attn_out = attn_out[:, :self.output_dim] # (L, O)
-        attn_out = self.ca_dropout(attn_out) # (L, O)
+        # attn_out = self.ca_dropout(attn_out) # (L, O)
         assert torch.isnan(attn_out).any() == False, "nan in attn_out"
 
         # map back to grid
