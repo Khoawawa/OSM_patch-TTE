@@ -34,24 +34,24 @@ class CA_ResnetEncoder(nn.Module):
             nn.Linear(adapter_hidden_dim, self.output_dim)
         )
         self.adapter_norm = nn.LayerNorm(self.output_dim)
-        # self.pos_encoder = PositionalEncoding2D(16)
+        self.pos_encoder = PositionalEncoding2D(d_model=self.output_dim)
         self.ca = LayerNormCA(d_model= self.output_dim, d_context = self.output_dim, num_heads=4,batch_first=batch_first)
-        # self.ca_dropout = nn.Dropout(0.1)
-    def calc_offsets(self, patches):
-        _, U, _ = patches.shape
-        H = W = int(U ** 0.5)
-        center_i = H // 2
-        center_j = W // 2
-        rel_offsets = torch.stack(
+        # precompute 
+        H = W = 7
+        center_i, center_j = H // 2, W // 2
+        grid_coords = torch.stack(
             torch.meshgrid(
-                torch.arange(W,device=patches.device) - center_j,
-                torch.arange(H,device=patches.device)-center_i, 
+                torch.arange(W) - center_j,
+                torch.arange(H) - center_i, 
                 indexing='xy'
             ), 
             dim=-1
-        ).reshape(-1,2) # (49, 2)
+        ).reshape(-1, 2).float() # (49, 2)
         
-        return rel_offsets
+        grid_pe = self.pos_encoder(grid_coords)
+        
+        self.register_buffer('grid_pe', grid_pe)
+        # self.ca_dropout = nn.Dropout(0.1)
     def get_offset_patch_embs(self, patches, offsets):
         # patches: (L, 784, resnet_out + PE)
         # offsets: (L, 2)
@@ -72,12 +72,9 @@ class CA_ResnetEncoder(nn.Module):
         idx_flat = (i_t * W + j_t).long() # (L,)
         
         patch_vectors = patches[torch.arange(L), idx_flat] # (L, resnet_out)
-
-        # offset_for_pe = torch.stack([dx, dy], dim=-1)        
-        # pe = self.pos_encoder(offset_for_pe)
-
-        # patch_vectors = torch.cat([patch_vectors, pe], dim=-1)
-
+        pe = self.pos_encoder(torch.stack([dx, dy], dim=-1)) # (L, PE)
+        patch_vectors = patch_vectors + pe
+        
         return patch_vectors.unsqueeze(1) # (L, 1, resnet_out + PE)    
     def forward(self, patches, patch_ids, valid_mask, offsets):
         # patches: (U, C, H, W)
@@ -87,16 +84,20 @@ class CA_ResnetEncoder(nn.Module):
 
         if not self.precomputed:
             out = self.resnet(patches) # (U, resnet_out,7,7)
+            out = out.flatten(2).transpose(1,2) # (U, 49, resnet_out)
+            
         else:
             out = patches.flatten(2).transpose(1,2) # (U, 49, resnet_out)
             
         B, T = valid_mask.shape
         
         gathered_patch_embs = out[patch_ids] # (L, 49, resnet_out)
-        gathered_patch_embs = self.compress_linear(gathered_patch_embs) # (L, 49, O)
-        adapter_in = self.adapter_norm(gathered_patch_embs) # (L, 49, O)
+        patches_compressed = self.compress_linear(gathered_patch_embs) # (L, 49, O)
+        # get kv
+        kv_with_pe = patches_compressed + self.grid_pe.unsqueeze(0) # baked-in positional encoding for kv
         # adapter
-        kv_patches = self.adapter(adapter_in) + gathered_patch_embs # (L, 49, O)
+        adapter_in = self.adapter_norm(kv_with_pe)
+        kv_patches = self.adapter(adapter_in) + kv_with_pe # (L, 49, O)
         # get offset and perform positional encoding
         # kv_pe = self.calc_offsets(adapter_out) # (49, 2)
         # kv_pe = self.pos_encoder(kv_pe) # (49, PE)
@@ -104,7 +105,7 @@ class CA_ResnetEncoder(nn.Module):
         # kv_pe = kv_pe.expand(adapter_out.shape[0],-1,-1) # (L, 49, PE)
         # kv_patches = torch.cat([adapter_out, kv_pe], dim=-1) # (L, 49, resnet_out + PE)
         # get query patch
-        query_patch = self.get_offset_patch_embs(kv_patches, offsets) # (L, 1,O)
+        query_patch = self.get_offset_patch_embs(patches_compressed, offsets) # (L, 1,O)
         # cross-attention
         attn_out = self.ca(query_patch,kv_patches) # (L, 1, O)
         # slice to remove PE
