@@ -93,7 +93,7 @@ class CA_ResnetEncoder(nn.Module):
         B, T = valid_mask.shape
         
         gathered_patch_embs = out[patch_ids] # (L, 49, resnet_out)
-        adapter_in = self.adapater_norm(gathered_patch_embs)
+        adapter_in = self.adapter_norm(gathered_patch_embs)
         # adapter
         kv_patches = self.adapter(adapter_in) + gathered_patch_embs # (L, 49, O)
         # get offset and perform positional encoding
