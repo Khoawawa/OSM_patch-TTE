@@ -25,7 +25,7 @@ class CA_ResnetEncoder(nn.Module):
         else:
             self.resnet_out = 2048 
 
-        self.output_dim = 240
+        self.output_dim = 256
         self.adapter = nn.Sequential(
             nn.Linear(self.resnet_out, adapter_hidden_dim),
             nn.GELU(),
@@ -33,7 +33,7 @@ class CA_ResnetEncoder(nn.Module):
             nn.Linear(adapter_hidden_dim, self.output_dim)
         )
         self.pos_encoder = PositionalEncoding2D(16)
-        self.ca = LayerNormCA(dim_q=self.output_dim+16,dim_kv=self.output_dim+16, num_heads=4,batch_first=batch_first)
+        self.ca = LayerNormCA(dim_q=self.output_dim,dim_kv=self.output_dim, num_heads=4,batch_first=batch_first)
         self.ca_dropout = nn.Dropout(0.1)
         self.topk = topk
     def calc_offsets(self, patches):
@@ -72,10 +72,10 @@ class CA_ResnetEncoder(nn.Module):
         
         patch_vectors = patches[torch.arange(L), idx_flat] # (L, resnet_out)
 
-        offset_for_pe = torch.stack([dx, dy], dim=-1)        
-        pe = self.pos_encoder(offset_for_pe)
+        # offset_for_pe = torch.stack([dx, dy], dim=-1)        
+        # pe = self.pos_encoder(offset_for_pe)
 
-        patch_vectors = torch.cat([patch_vectors, pe], dim=-1)
+        # patch_vectors = torch.cat([patch_vectors, pe], dim=-1)
 
         return patch_vectors.unsqueeze(1) # (L, 1, resnet_out + PE)    
     def forward(self, patches, patch_ids, valid_mask, offsets):
@@ -95,18 +95,19 @@ class CA_ResnetEncoder(nn.Module):
         # adapter
         adapter_out = self.adapter(gathered_patch_embs) # (L, 49, O)
         # get offset and perform positional encoding
-        kv_pe = self.calc_offsets(adapter_out) # (49, 2)
-        kv_pe = self.pos_encoder(kv_pe) # (49, PE)
-        kv_pe = kv_pe.unsqueeze(0) # (1, 49, PE)
-        kv_pe = kv_pe.expand(adapter_out.shape[0],-1,-1) # (L, 49, PE)
-        kv_patches = torch.cat([adapter_out, kv_pe], dim=-1) # (L, 49, resnet_out + PE)
+        # kv_pe = self.calc_offsets(adapter_out) # (49, 2)
+        # kv_pe = self.pos_encoder(kv_pe) # (49, PE)
+        # kv_pe = kv_pe.unsqueeze(0) # (1, 49, PE)
+        # kv_pe = kv_pe.expand(adapter_out.shape[0],-1,-1) # (L, 49, PE)
+        # kv_patches = torch.cat([adapter_out, kv_pe], dim=-1) # (L, 49, resnet_out + PE)
+        kv_patches = adapter_out
         # get query patch
         query_patch = self.get_offset_patch_embs(adapter_out, offsets) # (L, 1, resnet_out + PE)
         # cross-attention
         attn_out = self.ca(query_patch,kv_patches) # (L, 1, O + PE)
         # slice to remove PE
         attn_out = attn_out.squeeze(1) # (L, O + PE)
-        attn_out = attn_out[:, :self.output_dim] # (L, O)
+        # attn_out = attn_out[:, :self.output_dim] # (L, O)
         attn_out = self.ca_dropout(attn_out) # (L, O)
         assert torch.isnan(attn_out).any() == False, "nan in attn_out"
 
