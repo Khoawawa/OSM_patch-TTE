@@ -49,7 +49,7 @@
     },
     "OSM_BER_TTE_CA_precomputed_v2":{
         "adapter_hidden_dim":512,
-        "topk":64,
+        "v_output_dim":256,
         "use_precomputed": true,
         "seq_hidden_dim": 128,
         "seq_layer": 2,

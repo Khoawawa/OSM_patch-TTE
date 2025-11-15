@@ -10,10 +10,10 @@ from models.base.PositionalEncoding import PositionalEncoding2D
 batch_first=True
 
 class CA_ResnetEncoder(nn.Module):
-    def __init__(self, adapter_hidden_dim=512, topk=64, use_precomputed=False):
+    def __init__(self, adapter_hidden_dim=512, output_dim=256, use_precomputed=False):
         super().__init__()
         self.precomputed = use_precomputed
-
+        self.output_dim = output_dim
         if not use_precomputed:
             weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1
             self.resnet = resnet50(weights=weights)
@@ -23,20 +23,20 @@ class CA_ResnetEncoder(nn.Module):
             for param in self.resnet.parameters():
                 param.requires_grad = False
         else:
-            self.resnet_out = 2048 
-
-        self.output_dim = self.resnet_out
+            self.resnet_out = 2048
+             
+        self.compress_linear = nn.Linear(self.resnet_out, self.output_dim)
+        
         self.adapter = nn.Sequential(
-            nn.Linear(self.resnet_out, adapter_hidden_dim),
+            nn.Linear(self.output_dim, adapter_hidden_dim),
             nn.LeakyReLU(),
             nn.Dropout(0.1),
-            nn.Linear(adapter_hidden_dim, self.resnet_out)
+            nn.Linear(adapter_hidden_dim, self.output_dim)
         )
-        self.adapter_norm = nn.LayerNorm(self.resnet_out)
+        self.adapter_norm = nn.LayerNorm(self.output_dim)
         # self.pos_encoder = PositionalEncoding2D(16)
-        self.ca = LayerNormCA(d_model= self.resnet_out, d_context = self.resnet_out, num_heads=4,batch_first=batch_first)
+        self.ca = LayerNormCA(d_model= self.output_dim, d_context = self.output_dim, num_heads=4,batch_first=batch_first)
         # self.ca_dropout = nn.Dropout(0.1)
-        self.topk = topk
     def calc_offsets(self, patches):
         _, U, _ = patches.shape
         H = W = int(U ** 0.5)
@@ -93,9 +93,10 @@ class CA_ResnetEncoder(nn.Module):
         B, T = valid_mask.shape
         
         gathered_patch_embs = out[patch_ids] # (L, 49, resnet_out)
-        # adapter_in = self.adapter_norm(gathered_patch_embs)a
+        gathered_patch_embs = self.compress_linear(gathered_patch_embs) # (L, 49, O)
+        adapter_in = self.adapter_norm(gathered_patch_embs) # (L, 49, O)
         # adapter
-        kv_patches = self.adapter(gathered_patch_embs) + gathered_patch_embs # (L, 49, O)
+        kv_patches = self.adapter(adapter_in) + gathered_patch_embs # (L, 49, O)
         # get offset and perform positional encoding
         # kv_pe = self.calc_offsets(adapter_out) # (49, 2)
         # kv_pe = self.pos_encoder(kv_pe) # (49, PE)
@@ -103,11 +104,11 @@ class CA_ResnetEncoder(nn.Module):
         # kv_pe = kv_pe.expand(adapter_out.shape[0],-1,-1) # (L, 49, PE)
         # kv_patches = torch.cat([adapter_out, kv_pe], dim=-1) # (L, 49, resnet_out + PE)
         # get query patch
-        query_patch = self.get_offset_patch_embs(kv_patches, offsets) # (L, 1, resnet_out + PE)
+        query_patch = self.get_offset_patch_embs(kv_patches, offsets) # (L, 1,O)
         # cross-attention
-        attn_out = self.ca(query_patch,kv_patches) # (L, 1, O + PE)
+        attn_out = self.ca(query_patch,kv_patches) # (L, 1, O)
         # slice to remove PE
-        attn_out = attn_out.squeeze(1) # (L, O + PE)
+        attn_out = attn_out.squeeze(1) # (L, O)
         # attn_out = attn_out[:, :self.output_dim] # (L, O)
         # attn_out = self.ca_dropout(attn_out) # (L, O)
         assert torch.isnan(attn_out).any() == False, "nan in attn_out"

@@ -16,12 +16,12 @@ batch_first = False
 # then they are fed into a cross attention fusion block
 # then go into mlp to extract the time#
 class OSM_BER_TTE(torch.nn.Module):
-    def __init__(self, adapter_hidden_dim,topk,use_precomputed,
+    def __init__(self, adapter_hidden_dim,v_output_dim,use_precomputed,
                  seq_hidden_dim, seq_layer,
                  decoder_layer,
                  bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
         super().__init__()
-        self.visual_encoder = CA_ResnetEncoder(adapter_hidden_dim,use_precomputed=use_precomputed)
+        self.visual_encoder = CA_ResnetEncoder(adapter_hidden_dim,output_dim=v_output_dim,use_precomputed=use_precomputed)
         visual_out_dim = self.visual_encoder.output_dim # 240
         self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
         self.temporal_block = LayerNormGRU(input_dim=visual_out_dim + self.context_encoder.hidden_size, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
