@@ -51,6 +51,10 @@ class CA_ResnetEncoder(nn.Module):
         grid_pe = self.pos_encoder(grid_coords)
         
         self.register_buffer('grid_pe', grid_pe)
+        
+        # init weights for up projection adapter
+        nn.init.constant_(self.adapter[3].weight, 0.0)
+        nn.init.constant_(self.adapter[3].bias, 0.0)
         # self.ca_dropout = nn.Dropout(0.1)
     def get_offset_patch_embs(self, patches, offsets):
         # patches: (L, 784, resnet_out + PE)
