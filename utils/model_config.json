@@ -58,7 +58,7 @@
         "bert_hidden_size": 64,
         "bert_hidden_layers":4
     },
-    "OSM_BER_TTE_CA_precomputed_v2_512":{
+    "OSM_BER_TTE_CA_precomputed_v2_512_64":{
         "adapter_hidden_dim":64,
         "v_output_dim":512,
         "use_precomputed": true,
@@ -68,5 +68,5 @@
         "bert_attention_heads": 8,
         "bert_hidden_size": 64,
         "bert_hidden_layers":4
-    },
+    }
 }
