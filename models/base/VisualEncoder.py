@@ -10,7 +10,7 @@ from models.base.PositionalEncoding import PositionalEncoding2D
 batch_first=True
 
 class CA_ResnetEncoder(nn.Module):
-    def __init__(self, adapter_hidden_dim=512, output_dim=256, use_precomputed=False):
+    def __init__(self, adapter_hidden_dim=32, output_dim=512, use_precomputed=False):
         super().__init__()
         self.precomputed = use_precomputed
         self.output_dim = output_dim
