@@ -214,12 +214,13 @@ def load_datadoct_pre(args):
     global info_all
     transform, grid_index, edgeinfo, nodeinfo, scaler, scaler2 = None, None, None, None, None, None
     
+    
     abspath = os.path.join(os.path.dirname(__file__), "data_config.json")
     with open(abspath) as file:
         data_config = json.load(file)[args.dataset]
         args.data_config = data_config
     transform = get_transform()
-    
+    pt_path = args.data_config['patch']['visual_embedding']
     with open(os.path.join(args.absPath,args.data_config['edges_dir']), 'rb') as f:
         edgeinfo = pickle.load(f)
     with open(os.path.join(args.absPath,args.data_config['nodes_dir']), 'rb') as f:
@@ -227,7 +228,7 @@ def load_datadoct_pre(args):
     with open(os.path.join(args.absPath,args.data_config['patch']['patch_dir'],'patch_metadata.json'), 'r') as f:
         patch_json = json.load(f)
     grid_index = build_grid_index(patch_json, args.data_config['patch']['patch_size'])
-    global_patch_tensor_dict = build_tensor_dict(patch_json)
+    global_patch_tensor_dict = build_tensor_dict(pt_path,patch_json)
     
     if "porto" in args.dataset:
         scaler = StandardScaler()
