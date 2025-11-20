@@ -21,14 +21,6 @@ def get_transform():
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-def calc_norm_offset(patch, x, y, img_size):
-    center_x, center_y = patch["center"]["x"], patch["center"]["y"]
-
-    px = (x - center_x) / (img_size // 2)
-    py = (y - center_y) / (img_size // 2)
-    
-    return px, py
-
 
 def get_global_min_bounds(patches_json):
     """
@@ -50,7 +42,34 @@ def build_grid_index(patches_json, patch_size):
         i = int((bbox["minx"] - minx) / patch_size)
         j = int((bbox["miny"] - miny) / patch_size)
         grid_index[(i, j)] =  patch
+        if abs(bbox["minx"] - minx) < 1e-10:
+            grid_index[(0, j)] = patch
+        if abs(bbox["miny"] - miny) < 1e-10:
+            grid_index[(i, 0)] = patch
     return grid_index
+def gps_to_patch_idx(x, y, minx, miny, patch_size):
+    i = int((x - minx) / patch_size)
+    j = int((y - miny) / patch_size)
+    return (i, j)
+def gps_mapper(gps, grid_index, minx, miny, patch_size):
+    x_s, y_s, _,_ = gps
+    i, j = gps_to_patch_idx(x_s, y_s, minx, miny, patch_size)
+    patch = grid_index.get((i, j))
+    return patch, gps
+def get_unique_patches(patches):
+    unique_patches= []
+    seen = {}
+    link_mapper = {}
+    for i, (patch,_) in enumerate(patches):
+        pid = patch["patch_id"]
+        if pid not in seen:
+            idx = len(unique_patches)
+            seen[pid] = idx
+            unique_patches.append(patch)
+        link_mapper[i] = seen[pid]
+
+    return unique_patches, link_mapper 
+
 def collate_func(data, args, info_all):
     transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2,global_patch_tensor_dict = info_all
 
@@ -89,12 +108,14 @@ def collate_func(data, args, info_all):
     gps = con_links[:, 6:8]
     i = ((gps[:, 0] - minx) / patch_size).astype(int)
     j = ((gps[:, 1] - miny) / patch_size).astype(int)
-    print(i,j)
-    patch_ids_list = []
-    for ii, jj in zip(i, j):
-        print(ii, jj)
-        patch = grid_index.get((ii, jj))
-        patch_ids_list.append(patch['patch_id'])
+    
+    patch_ids_list = [] 
+    try:
+        for ii, jj in zip(i, j):
+            patch = grid_index.get((ii, jj))
+            patch_ids_list.append(patch['patch_id'])
+    except:
+        raise ValueError(f"GPS {gps[]} to patch mapping error")
         
     visual_embs = torch.stack([global_patch_tensor_dict[pid] for pid in patch_ids_list], dim=0)  # (L,384)
     mask = np.arange(lens.max()) < lens[:, None]
