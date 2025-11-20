@@ -21,37 +21,20 @@ def get_transform():
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-
-def get_global_min_bounds(patches_json):
-    """
-    Extract the global minimum x (longitude) and y (latitude)
-    across all patches.
-    """
-    minx = min(p["bbox"]["minx"] for p in patches_json)
-    miny = min(p["bbox"]["miny"] for p in patches_json)
-    return minx, miny
+def build_nearest_patch_lookup(patches_json):
+    centers = []
+    pids = []
+    for p in patches_json:
+        centers.append([p["center"]["x"], p["center"]["y"]])
+        pids.append(p["patch_id"])
+    return {
+        "centers": torch.tensor(centers),   # shape (N, 2)
+        "pids": torch.tensor(pids)          # shape (N,)
+    }
 def build_tensor_dict(pt_path, patches_json):
     features = torch.load(pt_path)
     return {patch["patch_id"]: features[i] for i, patch in enumerate(patches_json)}
-def build_grid_index(patches_json, patch_size):
-    minx, miny = get_global_min_bounds(patches_json)
-    grid_index = {}
 
-    for patch in patches_json:
-        bbox = patch["bbox"]
-        i = int((bbox["minx"] - minx) / patch_size)
-        j = int((bbox["miny"] - miny) / patch_size)
-        grid_index[(i, j)] =  patch
-        if abs(bbox["minx"] - minx) < 1e-10:
-            grid_index[(0, j)] = patch
-        if abs(bbox["miny"] - miny) < 1e-10:
-            grid_index[(i, 0)] = patch
-    max_i = max(k[0] for k in grid_index.keys())
-    max_j = max(k[1] for k in grid_index.keys())
-    min_i = min(k[0] for k in grid_index.keys())
-    min_j = min(k[1] for k in grid_index.keys())
-    print("Grid index spec: (", min_i, ",", min_j, ") to (", max_i, ",", max_j, ")")
-    return grid_index
 def gps_to_patch_idx(x, y, minx, miny, patch_size):
     i = int((x - minx) / patch_size)
     j = int((y - miny) / patch_size)
@@ -74,9 +57,8 @@ def get_unique_patches(patches):
         link_mapper[i] = seen[pid]
 
     return unique_patches, link_mapper 
-
 def collate_func(data, args, info_all):
-    transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2,global_patch_tensor_dict = info_all
+    patch_lookup, edgeinfo, nodeinfo, scaler, scaler2,global_patch_tensor_dict = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = [np.asarray(d[1]) for d in data]
@@ -105,24 +87,15 @@ def collate_func(data, args, info_all):
         return infos
 
     con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
-    # patch data
-    minx = args.data_config['patch']['minx']
-    miny = args.data_config['patch']['miny']
-    patch_size = args.data_config['patch']['patch_size']
     
-    gps = con_links[:, 6:8]
-    i = ((gps[:, 0] - minx) / patch_size).astype(int)
-    j = ((gps[:, 1] - miny) / patch_size).astype(int)
+    centers = patch_lookup['centers']  # shape (N, 2)
+    patch_ids_tensor = patch_lookup['pids']  # shape (N,)
+    gps = torch.from_numpy(con_links[:,6:8].astype(np.float32))  # shape (L, 2)
+    dist = torch.cdist(gps.float(), centers.float())  # shape (L,)
+    nearest_indices = torch.argmin(dist, dim=1)  # shape (L,)
+    patch_ids_list = patch_ids_tensor[nearest_indices].cpu().tolist()  
     
-    patch_ids_list = [] 
-    for ii, jj in zip(i, j):
-        patch = grid_index.get((ii, jj))
-        if patch is None:
-            raise ValueError(f"Patch not found for grid index ({ii}, {jj})")
-        patch_ids_list.append(patch['patch_id'])
-    
-        
-    visual_embs = torch.stack([global_patch_tensor_dict[pid] for pid in patch_ids_list], dim=0)  # (L,384)
+    visual_embs = torch.stack([global_patch_tensor_dict[pid] for pid in patch_ids_list], dim=0)  # shape (L, D)        
     mask = np.arange(lens.max()) < lens[:, None]
 
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
@@ -209,22 +182,24 @@ class BatchSampler:
 
 def load_datadoct_pre(args):
     global info_all
-    transform, grid_index, edgeinfo, nodeinfo, scaler, scaler2 = None, None, None, None, None, None
-    
-    
     abspath = os.path.join(os.path.dirname(__file__), "data_config.json")
+    
     with open(abspath) as file:
         data_config = json.load(file)[args.dataset]
         args.data_config = data_config
-    transform = get_transform()
+        
     pt_path = args.data_config['patch']['visual_embedding']
+    
     with open(os.path.join(args.absPath,args.data_config['edges_dir']), 'rb') as f:
         edgeinfo = pickle.load(f)
     with open(os.path.join(args.absPath,args.data_config['nodes_dir']), 'rb') as f:
         nodeinfo = pickle.load(f)
+        
     with open(os.path.join(args.absPath,args.data_config['patch']['patch_json']), 'r') as f:
         patch_json = json.load(f)
-    grid_index = build_grid_index(patch_json, args.data_config['patch']['patch_size'])
+        
+    patch_lookup = build_nearest_patch_lookup(patches_json=patch_json)
+    
     global_patch_tensor_dict = build_tensor_dict(pt_path,patch_json)
     
     if "porto" in args.dataset:
@@ -250,7 +225,7 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2, global_patch_tensor_dict]
+    info_all = [patch_lookup,edgeinfo, nodeinfo, scaler, scaler2, global_patch_tensor_dict]
 
 
 class Datadict(Dataset):
