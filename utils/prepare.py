@@ -21,7 +21,6 @@ def get_transform():
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-
 def calc_norm_offset(patch, x, y, img_size):
     center_x, center_y = patch["center"]["x"], patch["center"]["y"]
 
@@ -39,6 +38,9 @@ def get_global_min_bounds(patches_json):
     minx = min(p["bbox"]["minx"] for p in patches_json)
     miny = min(p["bbox"]["miny"] for p in patches_json)
     return minx, miny
+def build_tensor_dict(pt_path, patches_json):
+    features = torch.load(pt_path)
+    return {patch["patch_id"]: features[i] for i, patch in enumerate(patches_json)}
 def build_grid_index(patches_json, patch_size):
     minx, miny = get_global_min_bounds(patches_json)
     grid_index = {}
@@ -72,24 +74,20 @@ def get_unique_patches(patches):
 
     return unique_patches, link_mapper 
 
-def build_tensor_dict(patches_json):
-    tensor_dict = {}
-    for patch_info in patches_json:
-        pid = patch_info["patch_id"]
-        path = patch_info["embedding_path"]
-        tensor_dict[pid] = torch.load(path)
-    return tensor_dict
+# def build_tensor_dict(patches_json):
+#     tensor_dict = {}
+#     for patch_info in patches_json:
+#         pid = patch_info["patch_id"]
+#         path = patch_info["embedding_path"]
+#         tensor_dict[pid] = torch.load(path)
+#     return tensor_dict
 def collate_func(data, args, info_all):
     transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2,global_patch_tensor_dict = info_all
 
     time = torch.Tensor([d[-1] for d in data])
-    linkids = []
-    dateinfo = []
-    inds = []
-    for _, l in enumerate(data):
-        linkids.append(np.asarray(l[1]))
-        dateinfo.append(l[2:5])
-        inds.append(l[0])
+    linkids = [np.asarray(d[1]) for d in data]
+    dateinfo = [d[2:5] for d in data]
+    inds = [d[0] for d in data]
     lens = np.asarray([len(k) for k in linkids], dtype=np.int16)
     
     def info(xs, date):
@@ -114,42 +112,24 @@ def collate_func(data, args, info_all):
 
     con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
     # patch data
-    patches = [gps_mapper(link[6:10], grid_index, args.data_config['patch']['minx'], args.data_config['patch']['miny'], args.data_config['patch']['patch_size']) for link in con_links]
-    
-    unique_patches, link_mapper = get_unique_patches(patches) 
-    patch_data = []
-    # convert to tensor pad image
-
-    for patch in unique_patches:
-        pid = patch['patch_id']
-        patch_data.append(global_patch_tensor_dict[pid])
-
-    patch_data = torch.stack(patch_data, dim=0)  
-    # offset calculate
+    minx = args.data_config['patch']['minx']
+    miny = args.data_config['patch']['miny']
     patch_size = args.data_config['patch']['patch_size']
-
-    x_centers_list = [p['center']['x'] for p, _ in patches]
-    y_centers_list = [p['center']['y'] for p, _ in patches]
-    gps_list = [g for _, g in patches]
-
-    x_centers = torch.tensor(x_centers_list, dtype=torch.float32)
-    y_centers = torch.tensor(y_centers_list, dtype=torch.float32)
-    gps_numpy = np.array(gps_list, dtype=np.float32)
-    gps_data = torch.from_numpy(gps_numpy)
-    dx = gps_data[:, 0] - x_centers
-    dy = gps_data[:, 1] - y_centers
-
-    normalized_dx = 2 * dx / patch_size
-    normalized_dy = 2 * dy / patch_size
-
-
-    offset_tensor = torch.stack([normalized_dx, normalized_dy], dim=1) # (L, 2)
-
+    
+    gps = con_links[:, 6:8]
+    i = ((gps[:, 0] - minx) / patch_size).astype(int)
+    j = ((gps[:, 1] - miny) / patch_size).astype(int)
+    
+    patch_ids_list = []
+    for ii, jj in zip(i, j):
+        patch = grid_index.get((ii, jj))
+        patch_ids_list.append(patch['patch_id'])
+        
+    visual_embs = torch.stack([global_patch_tensor_dict[pid] for pid in patch_ids_list], dim=0)  # (L,384)
     mask = np.arange(lens.max()) < lens[:, None]
 
-    patch_ids = torch.tensor([link_mapper[i] for i in range(len(patches))], dtype=torch.long) # (total_link,)
-
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
+    
     con_links[:, 1:3] = scaler.transform(con_links[:, 1:3])
     con_links[:, 6:10] = scaler2.transform(con_links[:, 6:10])
 
@@ -182,10 +162,8 @@ def collate_func(data, args, info_all):
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
     
     return {'links':torch.from_numpy(padded),
-            'patches': patch_data,
-            'patch_ids': patch_ids,
+            'visual': visual_embs,
             'valid_mask': mask,
-            'offsets': offset_tensor,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
             'mask_label': torch.LongTensor(mask_label),
@@ -250,6 +228,7 @@ def load_datadoct_pre(args):
         patch_json = json.load(f)
     grid_index = build_grid_index(patch_json, args.data_config['patch']['patch_size'])
     global_patch_tensor_dict = build_tensor_dict(patch_json)
+    
     if "porto" in args.dataset:
         scaler = StandardScaler()
         scaler.fit([[0, 0]])

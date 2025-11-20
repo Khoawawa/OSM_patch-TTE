@@ -2,7 +2,7 @@ import torch
 
 from models.base.ContextEncoder import ContextEncoder
 from models.base.LayerNormGRU import LayerNormGRU
-from models.base.VisualEncoder import FiLm_ResnetEncoder, CA_ResnetEncoder
+from models.base.VisualEncoder import FiLm_ResnetEncoder, CA_ResnetEncoder, ViTEncoder
 import torch.nn.functional as F
 import torch.nn as nn
 import math
@@ -16,12 +16,12 @@ batch_first = False
 # then they are fed into a cross attention fusion block
 # then go into mlp to extract the time#
 class OSM_BER_TTE(torch.nn.Module):
-    def __init__(self, adapter_hidden_dim,v_output_dim,use_precomputed,
+    def __init__(self,v_output_dim,
                  seq_hidden_dim, seq_layer,
                  decoder_layer,
                  bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
         super().__init__()
-        self.visual_encoder = CA_ResnetEncoder(adapter_hidden_dim,output_dim=v_output_dim,use_precomputed=use_precomputed)
+        self.visual_encoder = ViTEncoder(output_dim=v_output_dim)
         visual_out_dim = self.visual_encoder.output_dim # 240
         self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
         self.temporal_block = LayerNormGRU(input_dim=visual_out_dim + self.context_encoder.hidden_size, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
@@ -33,12 +33,10 @@ class OSM_BER_TTE(torch.nn.Module):
         )
     def forward(self, input_, args):
         # visual input
-        patches = input_['patches']
-        patch_ids = input_['patch_ids']
-        valid_mask = input_['valid_mask']
-        diff = input_['offsets']
+        visual_embs = input_['visual'] # (total_link, 384)
+        valid_mask = input_['valid_mask'] # (B,T)
         # visual output
-        visual_output = self.visual_encoder(patches,patch_ids,valid_mask,diff) # (B, T, 384)
+        visual_output = self.visual_encoder(visual_embs,valid_mask) # (B, T, 384)
         # context output
         ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
         # temporal sendoff

@@ -8,7 +8,22 @@ import torchvision
 from models.base.FiLM import FilMAdapter
 from models.base.PositionalEncoding import PositionalEncoding2D
 batch_first=True
-
+class ViTEncoder(nn.Module):
+    def __init__(self, output_dim=512):
+        super().__init__()
+        self.output_dim = output_dim
+        self.proj = nn.Linear(1024, output_dim) if output_dim != 1024 else nn.Identity()
+        if output_dim != 1024:
+            torch.nn.init.kaiming_normal_(self.proj.weight, mode='fan_out', nonlinearity='relu')
+            if self.proj.bias is not None:
+                torch.nn.init.zeros_(self.proj.bias)
+    def forward(self, visual_embs, patch_ids,valid_mask):
+        embs = self.proj(visual_embs) # (L, output_dim)
+        B, T = valid_mask.shape
+        output_grid = torch.zeros(B,T,self.output_dim, device=embs.device, dtype=embs.dtype)
+        output_grid[valid_mask] = embs.to(output_grid.dtype)
+        return output_grid # (B, T, output_dim)
+    
 class CA_ResnetEncoder(nn.Module):
     def __init__(self, adapter_hidden_dim=32, output_dim=512, use_precomputed=False):
         super().__init__()
