@@ -18,6 +18,7 @@ class ViTEncoder(nn.Module):
             if self.proj.bias is not None:
                 torch.nn.init.zeros_(self.proj.bias)
     def forward(self, visual_embs,valid_mask):
+        print(visual_embs.shape)
         embs = self.proj(visual_embs) # (L, output_dim)
         B, T = valid_mask.shape
         output_grid = torch.zeros(B,T,self.output_dim, device=embs.device, dtype=embs.dtype)
