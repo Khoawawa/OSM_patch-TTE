@@ -51,36 +51,6 @@ def build_grid_index(patches_json, patch_size):
         j = int((bbox["miny"] - miny) / patch_size)
         grid_index[(i, j)] =  patch
     return grid_index
-def gps_to_patch_idx(x, y, minx, miny, patch_size):
-    i = int((x - minx) / patch_size)
-    j = int((y - miny) / patch_size)
-    return (i, j)
-def gps_mapper(gps, grid_index, minx, miny, patch_size):
-    x_s, y_s, _,_ = gps
-    i, j = gps_to_patch_idx(x_s, y_s, minx, miny, patch_size)
-    patch = grid_index.get((i, j))
-    return patch, gps
-def get_unique_patches(patches):
-    unique_patches= []
-    seen = {}
-    link_mapper = {}
-    for i, (patch,_) in enumerate(patches):
-        pid = patch["patch_id"]
-        if pid not in seen:
-            idx = len(unique_patches)
-            seen[pid] = idx
-            unique_patches.append(patch)
-        link_mapper[i] = seen[pid]
-
-    return unique_patches, link_mapper 
-
-# def build_tensor_dict(patches_json):
-#     tensor_dict = {}
-#     for patch_info in patches_json:
-#         pid = patch_info["patch_id"]
-#         path = patch_info["embedding_path"]
-#         tensor_dict[pid] = torch.load(path)
-#     return tensor_dict
 def collate_func(data, args, info_all):
     transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2,global_patch_tensor_dict = info_all
 
@@ -119,9 +89,10 @@ def collate_func(data, args, info_all):
     gps = con_links[:, 6:8]
     i = ((gps[:, 0] - minx) / patch_size).astype(int)
     j = ((gps[:, 1] - miny) / patch_size).astype(int)
-    
+    print(i,j)
     patch_ids_list = []
     for ii, jj in zip(i, j):
+        print(ii, jj)
         patch = grid_index.get((ii, jj))
         patch_ids_list.append(patch['patch_id'])
         
