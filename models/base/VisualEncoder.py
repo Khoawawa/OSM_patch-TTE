@@ -12,8 +12,8 @@ class ViTEncoder(nn.Module):
     def __init__(self, output_dim=512):
         super().__init__()
         self.output_dim = output_dim
-        self.proj = nn.Linear(1024, output_dim) if output_dim != 1024 else nn.Identity()
-        if output_dim != 1024:
+        self.proj = nn.Linear(768, output_dim) if output_dim != 768 else nn.Identity()
+        if output_dim != 768:
             torch.nn.init.kaiming_normal_(self.proj.weight, mode='fan_out', nonlinearity='relu')
             if self.proj.bias is not None:
                 torch.nn.init.zeros_(self.proj.bias)
