@@ -17,7 +17,7 @@ class ViTEncoder(nn.Module):
             torch.nn.init.kaiming_normal_(self.proj.weight, mode='fan_out', nonlinearity='relu')
             if self.proj.bias is not None:
                 torch.nn.init.zeros_(self.proj.bias)
-    def forward(self, visual_embs, patch_ids,valid_mask):
+    def forward(self, visual_embs,valid_mask):
         embs = self.proj(visual_embs) # (L, output_dim)
         B, T = valid_mask.shape
         output_grid = torch.zeros(B,T,self.output_dim, device=embs.device, dtype=embs.dtype)
