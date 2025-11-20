@@ -46,6 +46,11 @@ def build_grid_index(patches_json, patch_size):
             grid_index[(0, j)] = patch
         if abs(bbox["miny"] - miny) < 1e-10:
             grid_index[(i, 0)] = patch
+    max_i = max(k[0] for k in grid_index.keys())
+    max_j = max(k[1] for k in grid_index.keys())
+    min_i = min(k[0] for k in grid_index.keys())
+    min_j = min(k[1] for k in grid_index.keys())
+    print("Grid index spec: (", min_i, ",", min_j, ") to (", max_i, ",", max_j, ")")
     return grid_index
 def gps_to_patch_idx(x, y, minx, miny, patch_size):
     i = int((x - minx) / patch_size)
@@ -110,12 +115,12 @@ def collate_func(data, args, info_all):
     j = ((gps[:, 1] - miny) / patch_size).astype(int)
     
     patch_ids_list = [] 
-    try:
-        for ii, jj in zip(i, j):
-            patch = grid_index.get((ii, jj))
-            patch_ids_list.append(patch['patch_id'])
-    except:
-        raise ValueError(f"GPS {gps[]} to patch mapping error")
+    for ii, jj in zip(i, j):
+        patch = grid_index.get((ii, jj))
+        if patch is None:
+            raise ValueError(f"Patch not found for grid index ({ii}, {jj})")
+        patch_ids_list.append(patch['patch_id'])
+    
         
     visual_embs = torch.stack([global_patch_tensor_dict[pid] for pid in patch_ids_list], dim=0)  # (L,384)
     mask = np.arange(lens.max()) < lens[:, None]
