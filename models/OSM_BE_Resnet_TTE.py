@@ -2,7 +2,7 @@ import torch
 
 from models.base.ContextEncoder import ContextEncoder
 from models.base.LayerNormGRU import LayerNormGRU
-from models.base.VisualEncoder import FiLm_ResnetEncoder, CA_ResnetEncoder, ViTEncoder
+from models.base.VisualEncoder import FiLm_ResnetEncoder, CA_ResnetEncoder, ViTEncoder, EffnetEncoder
 import torch.nn.functional as F
 import torch.nn as nn
 import math
@@ -21,7 +21,7 @@ class OSM_BER_TTE(torch.nn.Module):
                  decoder_layer,
                  bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
         super().__init__()
-        self.visual_encoder = ViTEncoder(output_dim=v_output_dim)
+        self.visual_encoder = EffnetEncoder(output_dim=v_output_dim)
         visual_out_dim = self.visual_encoder.output_dim # 240
         self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
         self.temporal_block = LayerNormGRU(input_dim=visual_out_dim + self.context_encoder.hidden_size, hidden_dim=seq_hidden_dim, num_layers=seq_layer)

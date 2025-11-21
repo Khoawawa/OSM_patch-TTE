@@ -18,23 +18,29 @@ highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'tr
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
 def get_transform():
     return T.Compose([
+        T.RandomHorizontalFlip(),
+        T.RandomVerticalFlip(), 
+        T.RandomRotation(degrees=(-15,15)),
+        T.RandomAffine(degrees=0, translate=(0.06, 0.06), scale=(0.94, 1.06)),
+        
+        T.ColorJitter(
+        brightness=0.35, contrast=0.45, saturation=0.35, hue=0.06
+        ),
+        T.RandomGrayscale(p=0.12),
+        
+        T.RandAugment(num_ops=2, magnitude=7, 
+        interpolation=T.InterpolationMode.BILINEAR,
+        fill=255),
+        
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-def build_nearest_patch_lookup(patches_json):
-    centers = []
-    pids = []
-    for p in patches_json:
-        centers.append([p["center"]["x"], p["center"]["y"]])
-        pids.append(p["patch_id"])
-    return {
-        "centers": torch.tensor(centers),   # shape (N, 2)
-        "pids": torch.tensor(pids)          # shape (N,)
-    }
-def build_tensor_dict(pt_path, patches_json):
-    features = torch.load(pt_path)
-    return {patch["patch_id"]: features[i] for i, patch in enumerate(patches_json)}
-
+def build_patch_lookup(patch_json):
+    patch_lookup = {}
+    for p in patch_json:
+        pid = p["patch_id"]
+        patch_lookup[pid] = p
+    return patch_lookup
 def gps_to_patch_idx(x, y, minx, miny, patch_size):
     i = int((x - minx) / patch_size)
     j = int((y - miny) / patch_size)
@@ -58,7 +64,7 @@ def get_unique_patches(patches):
 
     return unique_patches, link_mapper 
 def collate_func(data, args, info_all):
-    patch_lookup, edgeinfo, nodeinfo, scaler, scaler2,global_patch_tensor_dict = info_all
+    patch_lookup,centers,transform, edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = [np.asarray(d[1]) for d in data]
@@ -87,15 +93,17 @@ def collate_func(data, args, info_all):
         return infos
 
     con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
-    
-    centers = patch_lookup['centers']  # shape (N, 2)
-    patch_ids_tensor = patch_lookup['pids']  # shape (N,)
     gps = torch.from_numpy(con_links[:,6:8].astype(np.float32))  # shape (L, 2)
     dist = torch.cdist(gps.float(), centers.float())  # shape (L,)
     nearest_indices = torch.argmin(dist, dim=1)  # shape (L,)
-    patch_ids_list = patch_ids_tensor[nearest_indices].cpu().tolist()  
+    patch_ids = nearest_indices.numpy().tolist()
+    patches = [patch_lookup[i] for i in patch_ids] # (L, )
+    patches_img = [
+        transform(Image.open(os.path.join(args.absPath, p["image_path"])).convert("RGB"))
+        for p in patches
+    ]
+    patches_tensor = torch.stack(patches_img, dim=0)  # shape (L, 3, H, W)
     
-    visual_embs = torch.stack([global_patch_tensor_dict[pid] for pid in patch_ids_list], dim=0)  # shape (L, D)        
     mask = np.arange(lens.max()) < lens[:, None]
 
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
@@ -132,7 +140,7 @@ def collate_func(data, args, info_all):
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
     
     return {'links':torch.from_numpy(padded),
-            'visual': visual_embs,
+            'patches': patches_tensor,
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
@@ -187,8 +195,6 @@ def load_datadoct_pre(args):
     with open(abspath) as file:
         data_config = json.load(file)[args.dataset]
         args.data_config = data_config
-        
-    pt_path = args.data_config['patch']['visual_embedding']
     
     with open(os.path.join(args.absPath,args.data_config['edges_dir']), 'rb') as f:
         edgeinfo = pickle.load(f)
@@ -197,11 +203,8 @@ def load_datadoct_pre(args):
         
     with open(os.path.join(args.absPath,args.data_config['patch']['patch_json']), 'r') as f:
         patch_json = json.load(f)
-        
-    patch_lookup = build_nearest_patch_lookup(patches_json=patch_json)
-    
-    global_patch_tensor_dict = build_tensor_dict(pt_path,patch_json)
-    
+      
+    centers = torch.tensor([[p["center"]["x"], p["center"]["y"]] for p in patch_json])
     if "porto" in args.dataset:
         scaler = StandardScaler()
         scaler.fit([[0, 0]])
@@ -225,7 +228,7 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [patch_lookup,edgeinfo, nodeinfo, scaler, scaler2, global_patch_tensor_dict]
+    info_all = [build_patch_lookup(patch_json),centers,get_transform(),edgeinfo, nodeinfo, scaler, scaler2]
 
 
 class Datadict(Dataset):

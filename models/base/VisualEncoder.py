@@ -8,6 +8,32 @@ import torchvision
 from models.base.FiLM import FilMAdapter
 from models.base.PositionalEncoding import PositionalEncoding2D
 batch_first=True
+class EffnetEncoder(nn.Module):
+    def __init__(self, output_dim=512):
+        super().__init__()
+        self.output_dim = output_dim
+        self.model = torchvision.models.efficientnet_b0(weights=torchvision.models.EfficientNet_B0_Weights.IMAGENET1K_V1)
+        model_dim = self.model.classifier[1].in_features
+        self.model = nn.Sequential(*list(self.model.children())[:-1]) # remove classifier
+        for param in self.model.parameters():
+            param.requires_grad = False
+            
+        self.map_proj = nn.Sequential(
+            nn.LayerNorm(model_dim),
+            nn.Linear(model_dim, output_dim),
+            nn.LeakyReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(output_dim, output_dim),
+            nn.LayerNorm(output_dim)
+        )
+    def forward(self, patches, valid_mask):
+        embs = self.model(patches) # (L, model_dim, 1, 1)
+        embs = embs.flatten(1) # (L, model_dim)
+        embs = self.map_proj(embs) # (L, output_dim)
+        B, T = valid_mask.shape
+        output_grid = torch.zeros(B,T,self.output_dim, device=embs.device, dtype=embs.dtype)
+        output_grid[valid_mask] = embs.to(output_grid.dtype)
+        return output_grid # (B, T, output_dim)
 class ViTEncoder(nn.Module):
     def __init__(self, output_dim=512):
         super().__init__()
