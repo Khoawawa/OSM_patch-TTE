@@ -2,7 +2,7 @@ import torch
 
 from models.base.ContextEncoder import ContextEncoder
 from models.base.LayerNormGRU import LayerNormGRU
-from models.base.VisualEncoder import FiLm_ResnetEncoder, CA_ResnetEncoder, ViTEncoder, EffnetEncoder, ResnetEncoder
+from models.base.VisualEncoder import FiLm_ResnetEncoder, CA_ResnetEncoder, ViTEncoder, ResnetEncoder
 import torch.nn.functional as F
 import torch.nn as nn
 import math
