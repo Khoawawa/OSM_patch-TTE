@@ -98,10 +98,10 @@ def collate_func(data, args, info_all):
     nearest_indices = torch.argmin(dist, dim=1)  # shape (L,)
     patch_ids = nearest_indices.numpy().tolist()
     patches = [patch_lookup[i] for i in patch_ids] # (L, )
-    patches_img = [
-        transform(Image.open(os.path.join(args.absPath, p["image_path"])).convert("RGB"))
-        for p in patches
-    ]
+    for p in patches:
+        path = os.Path(args.absPath) / p["image_path"]
+        if not path.exists():
+            print("Missing image:", path)
     patches_tensor = torch.stack(patches_img, dim=0)  # shape (L, 3, H, W)
     
     mask = np.arange(lens.max()) < lens[:, None]
