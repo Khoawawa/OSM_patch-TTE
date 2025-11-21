@@ -21,9 +21,8 @@ class ResnetEncoder(nn.Module):
             nn.Linear(output_dim, output_dim),
             nn.LayerNorm(output_dim)
         )
-    def forward(self, patches, valid_mask):
-        embs = self.model(patches) # (L, model_dim, 1, 1)
-        embs = embs.flatten(1) # (L, model_dim)
+    def forward(self, patch_embs, valid_mask):
+        embs = patch_embs.flatten(1) # (L, model_dim)
         embs = self.map_proj(embs) # (L, output_dim)
         B, T = valid_mask.shape
         output_grid = torch.zeros(B,T,self.output_dim, device=embs.device, dtype=embs.dtype)
