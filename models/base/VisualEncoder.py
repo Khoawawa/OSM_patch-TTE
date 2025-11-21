@@ -8,16 +8,11 @@ import torchvision
 from models.base.FiLM import FilMAdapter
 from models.base.PositionalEncoding import PositionalEncoding2D
 batch_first=True
-class EffnetEncoder(nn.Module):
+class ResnetEncoder(nn.Module):
     def __init__(self, output_dim=512):
         super().__init__()
         self.output_dim = output_dim
-        self.model = torchvision.models.efficientnet_b0(weights=torchvision.models.EfficientNet_B0_Weights.IMAGENET1K_V1)
-        model_dim = self.model.classifier[1].in_features
-        self.model = nn.Sequential(*list(self.model.children())[:-1]) # remove classifier
-        for param in self.model.parameters():
-            param.requires_grad = False
-            
+        model_dim = 2048
         self.map_proj = nn.Sequential(
             nn.LayerNorm(model_dim),
             nn.Linear(model_dim, output_dim),

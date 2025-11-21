@@ -69,7 +69,7 @@
         "bert_hidden_size": 64,
         "bert_hidden_layers":4
     },
-    "OSM_BER_TTE_effnet":{
+    "OSM_BER_TTE_resnet":{
         "v_output_dim":512,
         "seq_hidden_dim": 128,
         "seq_layer": 2,

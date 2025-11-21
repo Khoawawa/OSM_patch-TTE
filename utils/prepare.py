@@ -64,7 +64,7 @@ def get_unique_patches(patches):
 
     return unique_patches, link_mapper 
 def collate_func(data, args, info_all):
-    patch_lookup,centers,transform, edgeinfo, nodeinfo, scaler, scaler2 = info_all
+    patch_embeddings,centers,transform, edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = [np.asarray(d[1]) for d in data]
@@ -97,12 +97,8 @@ def collate_func(data, args, info_all):
     dist = torch.cdist(gps.float(), centers.float())  # shape (L,)
     nearest_indices = torch.argmin(dist, dim=1)  # shape (L,)
     patch_ids = nearest_indices.numpy().tolist()
-    patches = [patch_lookup[i] for i in patch_ids] # (L, )
-    patches_img = [
-        transform(Image.open(os.path.join(args.absPath, p["image_path"])).convert("RGB"))
-        for p in patches
-    ]
-    patches_tensor = torch.stack(patches_img, dim=0)  # shape (L, 3, H, W)
+    patches = [patch_embeddings[pid] for pid in patch_ids]  # list L of (, 2048)
+    patches_emb_tensor = torch.stack(patches, dim=0)  # shape (L, 2048)
     
     mask = np.arange(lens.max()) < lens[:, None]
 
@@ -138,9 +134,9 @@ def collate_func(data, args, info_all):
     linkindex[mask] = np.concatenate(sub_input_tmp)
     mask_encoder = np.zeros(mask.shape, dtype=np.int16)
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
-    print('finish -1')
+
     return {'links':torch.from_numpy(padded),
-            'patches': patches_tensor,
+            'patches_emb': patches_emb_tensor,
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
@@ -205,6 +201,7 @@ def load_datadoct_pre(args):
         patch_json = json.load(f)
       
     centers = torch.tensor([[p["center"]["x"], p["center"]["y"]] for p in patch_json])
+    patch_embeddings = torch.load(args.data_config['patch']['patch_emb_path'])
     if "porto" in args.dataset:
         scaler = StandardScaler()
         scaler.fit([[0, 0]])
@@ -228,7 +225,7 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [build_patch_lookup(patch_json),centers,get_transform(),edgeinfo, nodeinfo, scaler, scaler2]
+    info_all = [patch_embeddings,centers,get_transform(),edgeinfo, nodeinfo, scaler, scaler2]
 
 
 class Datadict(Dataset):
