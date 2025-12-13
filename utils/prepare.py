@@ -24,7 +24,11 @@ class RegionEmbeddingManager:
         self.keys = list(self.region_json[0].keys())
         self.bboxes = []
         self.patch_ids = []
-        self.region_embedding = torch.load(region_embedding_path)['embeddings']
+        self.region_embedding = torch.load(
+            region_embedding_path,
+            weights_only=False,
+            map_location="cpu"
+        )["embeddings"]
         for r in self.region_json:
             patch_id = r['patch_id']
             bbox = r['bbox']
