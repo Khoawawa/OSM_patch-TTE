@@ -14,9 +14,10 @@ class RegionEncoder(nn.Module):
             nn.LayerNorm(input_dim)
         )
     def compute_idw_weight(self, query_gps, region_centres):
-        # query_gps: [B, L, 2]
-        # region_centres: [B, L, N, 2]
-        dist_sq = torch.sum((query_gps.unsqueeze(2) - region_centres)**2, dim=-1)
+        # query_gps: [B* L, 2]
+        # region_centres: [B* L, N, 2]
+        diff = query_gps[:,None,:] - region_centres
+        dist_sq = torch.sum(diff ** 2, dim=-1)
         idw_weights = 1.0 / (dist_sq + 1e-6)
         softmax_weights = F.softmax(idw_weights, dim=-1)
         return softmax_weights 
