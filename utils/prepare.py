@@ -103,7 +103,7 @@ def collate_func(data, args, info_all):
         return infos
 
     con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
-    gps = con_links[:,6:8].copy().reshape([-1,2]) 
+    gps = con_links[:, 6:8].astype(np.float32).reshape(-1, 2)
     region_centres, region_feature = region_manager.find_n_nearest_region(gps[:,0], gps[:,1], 4)
     
     mask = np.arange(lens.max()) < lens[:, None] # mask.shape = [batch_size, max_len]
