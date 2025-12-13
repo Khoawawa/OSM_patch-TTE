@@ -11,60 +11,66 @@ from torch.utils.data.dataloader import DataLoader
 from utils.util import StandardScaler2
 from PIL import Image
 import torchvision.transforms as T
-from models.OSM_BE_Resnet_TTE import OSM_BER_TTE
+from models.OSM_BE_Resnet_TTE import OSM_BER_TTE, Regional_TTE
+from rtree import index
 
 
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
-def get_transform():
-    return T.Compose([
-        T.RandomHorizontalFlip(),
-        T.RandomVerticalFlip(), 
-        T.RandomRotation(degrees=(-15,15)),
-        T.RandomAffine(degrees=0, translate=(0.06, 0.06), scale=(0.94, 1.06)),
+class RegionEmbeddingManager:
+    def __init__(self, region_json, region_embedding_path):
+        with open(region_json, 'r') as f:
+            self.region_json = json.load(f)
+        self.keys = list(self.region_json[0].keys())
+        self.bboxes = []
+        self.patch_ids = []
+        self.region_embedding = torch.load(region_embedding_path)['embeddings']
+        for r in self.region_json:
+            patch_id = r['patch_id']
+            bbox = r['bbox']
+            self.bboxes.append((bbox['minx'], bbox['miny'], bbox['maxx'], bbox['maxy']))
+            self.patch_ids.append(patch_id)
         
-        T.ColorJitter(
-        brightness=0.35, contrast=0.45, saturation=0.35, hue=0.06
-        ),
-        T.RandomGrayscale(p=0.12),
-        
-        T.RandAugment(num_ops=2, magnitude=7, 
-        interpolation=T.InterpolationMode.BILINEAR,
-        fill=255),
-        
-        T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-def build_patch_lookup(patch_json):
-    patch_lookup = {}
-    for p in patch_json:
-        pid = p["patch_id"]
-        patch_lookup[pid] = p
-    return patch_lookup
-def gps_to_patch_idx(x, y, minx, miny, patch_size):
-    i = int((x - minx) / patch_size)
-    j = int((y - miny) / patch_size)
-    return (i, j)
-def gps_mapper(gps, grid_index, minx, miny, patch_size):
-    x_s, y_s, _,_ = gps
-    i, j = gps_to_patch_idx(x_s, y_s, minx, miny, patch_size)
-    patch = grid_index.get((i, j))
-    return patch, gps
-def get_unique_patches(patches):
-    unique_patches= []
-    seen = {}
-    link_mapper = {}
-    for i, (patch,_) in enumerate(patches):
-        pid = patch["patch_id"]
-        if pid not in seen:
-            idx = len(unique_patches)
-            seen[pid] = idx
-            unique_patches.append(patch)
-        link_mapper[i] = seen[pid]
+        self.index_to_patch_id = {i: patch_id for i, patch_id in enumerate(self.patch_ids)}
+        print("Building rtree")
+        self.rtree_idx = index.Index()
+        for i, bbox_coords in enumerate(self.bboxes):
+            self.rtree_idx.insert(i, bbox_coords)
+        print("Finished building rtree with {} regions".format(len(self.region_json)))
 
-    return unique_patches, link_mapper 
+
+    def find_n_nearest_region(self, xs, ys, n):
+        
+        all_nearest_centres = []
+        all_nearest_features = []
+        for x, y in zip(xs, ys):
+            query_pt = (float(x), float(y))
+            nearest_indices = list(self.rtree_idx.nearest(query_pt, n))
+            nearest_patch_ids = [self.index_to_patch_id[i] for i in nearest_indices]
+            
+            nearest_regions = [self.region_json[i] for i in nearest_patch_ids]
+            centres = np.array([
+                [r['center']['x'], r['center']['y']]
+                for r in nearest_regions
+            ], dtype=np.float32)       
+            
+            features = torch.stack(
+                [
+                    torch.from_numpy(self.region_embedding[r["patch_id"]]).float()
+                    if isinstance(self.region_embedding[r["patch_id"]], np.ndarray)
+                    else self.region_embedding[r["patch_id"]]
+                    for r in nearest_regions
+                ],
+                dim=0
+            )
+            all_nearest_centres.append(centres)
+            all_nearest_features.append(features)
+        return np.stack(all_nearest_centres), np.stack(all_nearest_features) 
+    
+    
 def collate_func(data, args, info_all):
-    patch_embeddings,centers,transform, edgeinfo, nodeinfo, scaler, scaler2 = info_all
+
+    region_manager, edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = [np.asarray(d[1]) for d in data]
@@ -93,14 +99,10 @@ def collate_func(data, args, info_all):
         return infos
 
     con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
-    gps = torch.from_numpy(con_links[:,6:8].astype(np.float32))  # shape (L, 2)
-    dist = torch.cdist(gps.float(), centers.float())  # shape (L,)
-    nearest_indices = torch.argmin(dist, dim=1)  # shape (L,)
-    patch_ids = nearest_indices.numpy().tolist()
-    patches = [patch_embeddings[pid] for pid in patch_ids]  # list L of (, 2048)
-    patches_emb_tensor = torch.stack(patches, dim=0)  # shape (L, 2048)
+    gps = con_links[:,6:8].copy().reshape([-1,2]) 
+    region_centres, region_feature = region_manager.find_n_nearest_region(gps[:,0], gps[:,1], 4)
     
-    mask = np.arange(lens.max()) < lens[:, None]
+    mask = np.arange(lens.max()) < lens[:, None] # mask.shape = [batch_size, max_len]
 
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
     
@@ -136,7 +138,8 @@ def collate_func(data, args, info_all):
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
 
     return {'links':torch.from_numpy(padded),
-            'patches_emb': patches_emb_tensor,
+            'region_centre': torch.from_numpy(region_centres),
+            'region_feature': torch.from_numpy(region_feature),
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
@@ -199,9 +202,8 @@ def load_datadoct_pre(args):
         
     with open(os.path.join(args.absPath,args.data_config['patch']['patch_json']), 'r') as f:
         patch_json = json.load(f)
-      
-    centers = torch.tensor([[p["center"]["x"], p["center"]["y"]] for p in patch_json])
-    patch_embeddings = torch.load(args.data_config['patch']['patch_emb_path'])
+    embedding_path = os.path.join(args.absPath,args.data_config['patch']['patch_embedding'])
+    region_manager = RegionEmbeddingManager(patch_json,embedding_path)
     if "porto" in args.dataset:
         scaler = StandardScaler()
         scaler.fit([[0, 0]])
@@ -225,8 +227,8 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [patch_embeddings,centers,get_transform(),edgeinfo, nodeinfo, scaler, scaler2]
-
+    info_all = [region_manager,edgeinfo, nodeinfo, scaler, scaler2]
+    
 
 class Datadict(Dataset):
     def __init__(self, inputs):
@@ -250,7 +252,7 @@ def load_datadict(args):
     if args.mode == 'test':
         phases = ['test']
     else:
-        phases = ['train', 'val', 'test']
+        phases = ['train', 'val']
 
     for phase in phases:
         tdata = np.load(os.path.join(args.absPath,args.data_config['data_dir'], phase + '.npy'), allow_pickle=True)
@@ -276,6 +278,9 @@ def create_model(args):
     model_config['pad_token_id'] = args.data_config['edges'] + 1
     if "OSM_BER_TTE" in args.model:
         return OSM_BER_TTE(**model_config)
+    if "region" in args.model.lower():
+        return Regional_TTE(**model_config)
+
         
 
 def create_main_loss(loss_bert,loss, args):

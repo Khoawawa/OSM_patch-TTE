@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from transformers import BertConfig, BertForMaskedLM
-
+from torch.nn.functional import tanh
 
 class ContextEncoder(nn.Module):
     def __init__(self,
@@ -13,6 +13,7 @@ class ContextEncoder(nn.Module):
 
         self.highwayembed = nn.Embedding(15, 5, padding_idx=0)
         self.gpsembed = nn.Linear(4,16)
+        # attribute encoding
         self.distembed = nn.Linear(1, 4)
         self.weekembed = nn.Embedding(8, 3)
         self.dateembed = nn.Embedding(367, 10)
@@ -38,7 +39,7 @@ class ContextEncoder(nn.Module):
         weekrep = self.weekembed(feature[:, :, 3].long()) # 3
         daterep = self.dateembed(feature[:, :, 4].long())  # 10
         timerep = self.timeembed(feature[:, :, 5].long()) # 20
-        gpsrep = self.gpsembed(feature[:, :, 6:10].float()) # 16
+        gpsrep = tanh(self.gpsembed(feature[:, :, 6:10].float())) # 16
         datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 3 + 10 + 20 = 33
 
         loss_1, hidden_states, prediction_scores = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']])
