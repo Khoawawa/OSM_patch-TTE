@@ -142,6 +142,7 @@ def collate_func(data, args, info_all):
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
 
     return {'links':torch.from_numpy(padded),
+            'gps': torch.from_numpy(gps),
             'region_centre': torch.from_numpy(region_centres),
             'region_feature': torch.from_numpy(region_feature),
             'valid_mask': mask,
