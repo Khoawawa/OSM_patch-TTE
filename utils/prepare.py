@@ -19,8 +19,8 @@ highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'tr
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
 class RegionEmbeddingManager:
     def __init__(self, region_json, region_embedding_path):
-        with open(region_json, 'r') as f:
-            self.region_json = json.load(f)
+
+        self.region_json = region_json
         self.keys = list(self.region_json[0].keys())
         self.bboxes = []
         self.patch_ids = []
