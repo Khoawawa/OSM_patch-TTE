@@ -34,7 +34,7 @@ class Regional_TTE(torch.nn.Module):
     def forward(self, input_, args):
         # visual input
         region_centre = input_['region_centre'] # (B*L, N, 4)
-        region_features = input_['region_features'] # (B*L, N, 2048)
+        region_features = input_['region_feature'] # (B*L, N, 2048)
         valid_mask = input_['valid_mask'] # (B,T)
         # visual output
         regional_output = self.regional_encoder(region_centre, region_features, valid_mask) # (B, L, O)
