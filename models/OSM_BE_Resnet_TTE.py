@@ -36,9 +36,9 @@ class Regional_TTE(torch.nn.Module):
         region_centre = input_['region_centre'] # (B*L, N, 4)
         region_features = input_['region_feature'] # (B*L, N, 2048)
         gps = input_['gps']
-        print("Region_center shape: ",region_centre.shape) 
-        print("Region_features shape: ",region_features.shape)
-        print("GPS shape: ",gps.shape)
+        # print("Region_center shape: ",region_centre.shape) 
+        # print("Region_features shape: ",region_features.shape)
+        # print("GPS shape: ",gps.shape)
         valid_mask = input_['valid_mask'] # (B,T)
         # visual output
         regional_output = self.regional_encoder(gps,region_centre, region_features, valid_mask) # (B, L, O)
