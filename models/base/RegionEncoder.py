@@ -23,14 +23,14 @@ class RegionEncoder(nn.Module):
     def forward(self, query_gps,region_centres, region_features, valid_mask):
         # query_gps: [B, 2]
         # region_features: [B, N, F]
-        print("Region_features shape in RegionEncoder: ", region_features.shape)
-        print("region_feature", region_features.min(), region_features.max())
-        assert not torch.isnan(region_features).any(), "region_features contains NaNs!"
+        # print("Region_features shape in RegionEncoder: ", region_features.shape)
+        # print("region_feature", region_features.min(), region_features.max())
+        # assert not torch.isnan(region_features).any(), "region_features contains NaNs!"
         region_embs = self.mlp(region_features)
-        assert not torch.isnan(region_embs).any(), "region_embs contains NaNs!"
+        # assert not torch.isnan(region_embs).any(), "region_embs contains NaNs!"
         softmax_wgts = self.compute_idw_weight(query_gps, region_centres)
         ctx_embs = torch.sum(region_embs * softmax_wgts.unsqueeze(-1), dim=-2) 
-        assert not torch.isnan(region_embs).any(), "ctx_embs contains NaNs!"
+        # assert not torch.isnan(region_embs).any(), "ctx_embs contains NaNs!"
         ctx_return = torch.zeros(valid_mask.shape[0], valid_mask.shape[1],self.output_dim, device=ctx_embs.device, dtype=ctx_embs.dtype)
         ctx_return[valid_mask] = ctx_embs
         return ctx_return # [B,L, O]
