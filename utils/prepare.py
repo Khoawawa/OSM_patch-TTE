@@ -27,7 +27,7 @@ class RegionEmbeddingManager:
         for r in self.region_json:
             patch_id = r['patch_id']
             bbox = r['bbox']
-            self.bboxes.append((bbox['minx'], bbox['miny'], bbox['maxx'], bbox['maxy']))
+            self.bboxes.append((bbox['min_lon'], bbox['min_lat'], bbox['max_lon'], bbox['max_lat']))
             self.patch_ids.append(patch_id)
         
         self.index_to_patch_id = {i: patch_id for i, patch_id in enumerate(self.patch_ids)}
