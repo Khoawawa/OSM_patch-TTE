@@ -79,7 +79,7 @@
         "bert_hidden_layers":4
     },
     "Regional_34_TTE":{
-        "r_input_dim": 18,
+        "r_input_dim": 23,
         "r_hidden_dim": 32,
         "r_output_dim": 64,
         "seq_hidden_dim": 128,
