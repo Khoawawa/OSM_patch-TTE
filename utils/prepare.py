@@ -51,8 +51,7 @@ class RegionEmbeddingManager:
                 [r['center']['lon'], r['center']['lat']]
                 for r in nearest_regions
             ], dtype=np.float32)       
-            
-            features 
+
             features = torch.stack([
                 torch.tensor(list(r['features'].values()), dtype=torch.float32)
                 for r in nearest_regions
