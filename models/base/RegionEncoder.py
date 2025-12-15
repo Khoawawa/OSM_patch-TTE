@@ -24,6 +24,7 @@ class RegionEncoder(nn.Module):
         # query_gps: [B, 2]
         # region_features: [B, N, F]
         print("Region_features shape in RegionEncoder: ", region_features.shape)
+        print("region_feature", region_features.min(), region_features.max())
         assert not torch.isnan(region_features).any(), "region_features contains NaNs!"
         region_embs = self.mlp(region_features)
         assert not torch.isnan(region_embs).any(), "region_embs contains NaNs!"
