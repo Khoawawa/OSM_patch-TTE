@@ -23,6 +23,7 @@ class RegionEncoder(nn.Module):
     def forward(self, query_gps,region_centres, region_features, valid_mask):
         # query_gps: [B, 2]
         # region_features: [B, N, F]
+        assert not torch.isnan(region_features).any(), "region_features contains NaNs!"
         region_embs = self.mlp(region_features)
         assert not torch.isnan(region_embs).any(), "region_embs contains NaNs!"
         softmax_wgts = self.compute_idw_weight(query_gps, region_centres)
