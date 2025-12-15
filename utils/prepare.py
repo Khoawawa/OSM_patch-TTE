@@ -39,26 +39,19 @@ class RegionEmbeddingManager:
 
 
     def find_n_nearest_region(self, xs, ys, n):
-        
-        all_nearest_centres = []
+
         all_nearest_features = []
         for x, y in zip(xs, ys):
             query_pt = (float(x), float(y))
             nearest_indices = list(self.rtree_idx.nearest(query_pt, n))
             nearest_regions = [self.region_json[i] for i in nearest_indices]
-            
-            centres = np.array([
-                [r['center']['lon'], r['center']['lat']]
-                for r in nearest_regions
-            ], dtype=np.float32)       
 
             features = torch.stack([
                 torch.tensor(list(r['features'].values()), dtype=torch.float32)
                 for r in nearest_regions
             ], dim=0)
-            all_nearest_centres.append(centres)
             all_nearest_features.append(features)
-        return np.stack(all_nearest_centres), np.stack(all_nearest_features) 
+        return torch.stack(all_nearest_features, dim=0)
     
     
 def collate_func(data, args, info_all):
@@ -93,7 +86,7 @@ def collate_func(data, args, info_all):
 
     con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
     gps = con_links[:, 6:8].astype(np.float32).reshape(-1, 2)
-    region_centres, region_feature = region_manager.find_n_nearest_region(gps[:,0], gps[:,1], 4)
+    region_feature = region_manager.find_n_nearest_region(gps[:,0], gps[:,1], 1)
     
     mask = np.arange(lens.max()) < lens[:, None] # mask.shape = [batch_size, max_len]
 
@@ -131,8 +124,6 @@ def collate_func(data, args, info_all):
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
 
     return {'links':torch.from_numpy(padded),
-            'gps': torch.from_numpy(gps),
-            'region_centre': torch.from_numpy(region_centres),
             'region_feature': region_feature,
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 
