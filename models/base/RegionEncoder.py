@@ -25,10 +25,9 @@ class RegionEncoder(nn.Module):
         # region_features: [N_total, 1, F]
         # region_centres: [N_total, 1, 2]
         # valid_mask: [B, L] bool tensor
-        region_features = region_features.view(-1, self.feature_input_dim) # [N_total, F]
-
+        assert not torch.isnan(region_features).any(), "region_embs contains NaNs!"
         region_embs = self.mlp(region_features) # [N_total, O]
-        # assert not torch.isnan(region_embs).any(), "region_embs contains NaNs!"
+        assert not torch.isnan(region_embs).any(), "region_embs contains NaNs!"
         # softmax_wgts = self.compute_idw_weight(query_gps, region_centres)
         # ctx_embs = torch.sum(region_embs * softmax_wgts.unsqueeze(-1), dim=-2) 
         # assert not torch.isnan(region_embs).any(), "ctx_embs contains NaNs!"
