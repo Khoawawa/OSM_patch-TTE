@@ -58,7 +58,7 @@ class RegionEmbeddingManager:
             ], dim=0)
             all_nearest_centres.append(centres)
             all_nearest_features.append(features)
-        return np.stack(all_nearest_centres), np.stack(all_nearest_features) 
+        return torch.stack(all_nearest_centres), np.stack(all_nearest_features) 
     
     
 def collate_func(data, args, info_all):
