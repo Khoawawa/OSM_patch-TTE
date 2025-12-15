@@ -24,10 +24,10 @@ class RegionEncoder(nn.Module):
         # query_gps: [B, 2]
         # region_features: [B, N, F]
         region_embs = self.mlp(region_features)
-        
+        assert not torch.isnan(region_embs).any(), "region_embs contains NaNs!"
         softmax_wgts = self.compute_idw_weight(query_gps, region_centres)
         ctx_embs = torch.sum(region_embs * softmax_wgts.unsqueeze(-1), dim=-2) 
-
+        assert not torch.isnan(region_embs).any(), "ctx_embs contains NaNs!"
         ctx_return = torch.zeros(valid_mask.shape[0], valid_mask.shape[1],self.output_dim, device=ctx_embs.device, dtype=ctx_embs.dtype)
         ctx_return[valid_mask] = ctx_embs
         return ctx_return # [B,L, O]
