@@ -17,7 +17,7 @@ batch_first = False
 # then they are fed into a cross attention fusion block
 # then go into mlp to extract the time#
 class Regional_TTE(torch.nn.Module):
-    def __init__(self,r_input_dim,
+    def __init__(self,r_input_dim,r_hidden_dim,r_output_dim,
                  seq_hidden_dim, seq_layer,
                  decoder_layer,
                  bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):

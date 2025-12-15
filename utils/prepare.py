@@ -18,17 +18,12 @@ from rtree import index
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
 class RegionEmbeddingManager:
-    def __init__(self, region_json, region_embedding_path):
+    def __init__(self, region_json):
 
         self.region_json = region_json
-        self.keys = list(self.region_json[0].keys())
         self.bboxes = []
         self.patch_ids = []
-        self.region_embedding = torch.load(
-            region_embedding_path,
-            weights_only=False,
-            map_location="cpu"
-        )["embeddings"]
+        
         for r in self.region_json:
             patch_id = r['patch_id']
             bbox = r['bbox']
@@ -50,23 +45,18 @@ class RegionEmbeddingManager:
         for x, y in zip(xs, ys):
             query_pt = (float(x), float(y))
             nearest_indices = list(self.rtree_idx.nearest(query_pt, n))
-            nearest_patch_ids = [self.index_to_patch_id[i] for i in nearest_indices]
+            nearest_regions = [self.region_json[i] for i in nearest_indices]
             
-            nearest_regions = [self.region_json[i] for i in nearest_patch_ids]
             centres = np.array([
-                [r['center']['x'], r['center']['y']]
+                [r['center']['lon'], r['center']['lat']]
                 for r in nearest_regions
             ], dtype=np.float32)       
             
-            features = torch.stack(
-                [
-                    torch.from_numpy(self.region_embedding[r["patch_id"]]).float()
-                    if isinstance(self.region_embedding[r["patch_id"]], np.ndarray)
-                    else self.region_embedding[r["patch_id"]]
-                    for r in nearest_regions
-                ],
-                dim=0
-            )
+            features 
+            features = torch.stack([
+                torch.tensor(list(r['features'].values()), dtype=torch.float32)
+                for r in nearest_regions
+            ], dim=0)
             all_nearest_centres.append(centres)
             all_nearest_features.append(features)
         return np.stack(all_nearest_centres), np.stack(all_nearest_features) 
@@ -144,7 +134,7 @@ def collate_func(data, args, info_all):
     return {'links':torch.from_numpy(padded),
             'gps': torch.from_numpy(gps),
             'region_centre': torch.from_numpy(region_centres),
-            'region_feature': torch.from_numpy(region_feature),
+            'region_feature': region_feature,
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
@@ -207,8 +197,8 @@ def load_datadoct_pre(args):
         
     with open(os.path.join(args.absPath,args.data_config['patch']['patch_json']), 'r') as f:
         patch_json = json.load(f)
-    embedding_path = os.path.join(args.absPath,args.data_config['patch']['patch_embedding'])
-    region_manager = RegionEmbeddingManager(patch_json,embedding_path)
+        
+    region_manager = RegionEmbeddingManager(patch_json)
     if "porto" in args.dataset:
         scaler = StandardScaler()
         scaler.fit([[0, 0]])
