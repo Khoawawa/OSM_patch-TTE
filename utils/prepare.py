@@ -47,10 +47,10 @@ class RegionEmbeddingManager:
             nearest_indices = list(self.rtree_idx.nearest(query_pt, n))
             nearest_regions = [self.region_json[i] for i in nearest_indices]
             
-            centres = np.array([
-                [r['center']['lon'], r['center']['lat']]
-                for r in nearest_regions
-            ], dtype=np.float32)       
+            centres = torch.tensor(
+                [[r['center']['lon'], r['center']['lat']] for r in nearest_regions],
+                dtype=torch.float32
+            )      
 
             features = torch.stack([
                 torch.tensor(list(r['features'].values()), dtype=torch.float32)
@@ -58,7 +58,7 @@ class RegionEmbeddingManager:
             ], dim=0)
             all_nearest_centres.append(centres)
             all_nearest_features.append(features)
-        return torch.stack(all_nearest_centres), np.stack(all_nearest_features) 
+        return torch.stack(all_nearest_centres, dim=0), torch.stack(all_nearest_features, dim=0) 
     
     
 def collate_func(data, args, info_all):
@@ -132,7 +132,7 @@ def collate_func(data, args, info_all):
 
     return {'links':torch.from_numpy(padded),
             'gps': torch.from_numpy(gps),
-            'region_centre': torch.from_numpy(region_centres),
+            'region_centre': region_centres,
             'region_feature': region_feature,
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 
