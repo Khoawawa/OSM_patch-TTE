@@ -63,7 +63,7 @@ class RegionEmbeddingManager:
     
 def collate_func(data, args, info_all):
 
-    region_manager, edgeinfo, nodeinfo, scaler, scaler2 = info_all
+    region_manager, edgeinfo, nodeinfo, scaler, scaler2, region_mean, region_std = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = [np.asarray(d[1]) for d in data]
@@ -94,7 +94,12 @@ def collate_func(data, args, info_all):
     con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
     gps = con_links[:, 6:8].astype(np.float32).reshape(-1, 2)
     region_centres, region_feature = region_manager.find_n_nearest_region(gps[:,0], gps[:,1], 4)
-    
+    region_mean = region_mean.to(region_feature.device)
+    region_std = region_std.to(region_feature.device)
+
+    region_feature = torch.log1p(region_feature)
+    region_feature = (region_feature - region_mean) / (region_std + 1e-8)
+
     mask = np.arange(lens.max()) < lens[:, None] # mask.shape = [batch_size, max_len]
 
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
@@ -198,6 +203,11 @@ def load_datadoct_pre(args):
         patch_json = json.load(f)
         
     region_manager = RegionEmbeddingManager(patch_json)
+    with open(os.path.join(args.absPath,args.data_config['patch']['region_stats']), 'r') as f:
+        region_stats = json.load(f)
+    region_mean = torch.tensor(region_stats['mean'], dtype=torch.float32)
+    region_std = torch.tensor(region_stats['std'], dtype=torch.float32)
+    
     if "porto" in args.dataset:
         scaler = StandardScaler()
         scaler.fit([[0, 0]])
@@ -221,7 +231,7 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [region_manager,edgeinfo, nodeinfo, scaler, scaler2]
+    info_all = [region_manager,edgeinfo, nodeinfo, scaler, scaler2, region_mean, region_std]
     
 
 class Datadict(Dataset):
