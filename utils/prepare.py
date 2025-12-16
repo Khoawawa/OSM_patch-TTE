@@ -24,13 +24,21 @@ class RegionEmbeddingManager:
         self.bboxes = []
         self.patch_ids = []
         
+        centres = []
+        features = []
+
         for r in self.region_json:
-            patch_id = r['patch_id']
             bbox = r['bbox']
+
             self.bboxes.append((bbox['min_lon'], bbox['min_lat'], bbox['max_lon'], bbox['max_lat']))
-            self.patch_ids.append(patch_id)
+            self.patch_ids.append(r['patch_id'])
+
+            centres.append([r['center']['lon'], r['center']['lat']])
+            features.append(list(r['features'].values()))
         
-        self.index_to_patch_id = {i: patch_id for i, patch_id in enumerate(self.patch_ids)}
+        self.centres = torch.tensor(centres, dtype=torch.float32)   # [R, 2]
+        self.features = torch.tensor(features, dtype=torch.float32) # [R, F]
+        
         print("Building rtree")
         self.rtree_idx = index.Index()
         for i, bbox_coords in enumerate(self.bboxes):
@@ -45,19 +53,9 @@ class RegionEmbeddingManager:
         for x, y in zip(xs, ys):
             query_pt = (float(x), float(y))
             nearest_indices = list(self.rtree_idx.nearest(query_pt, n))
-            nearest_regions = [self.region_json[i] for i in nearest_indices]
+            all_nearest_centres.append(self.centres[nearest_indices])
+            all_nearest_features.append(self.features[nearest_indices])
             
-            centres = torch.tensor(
-                [[r['center']['lon'], r['center']['lat']] for r in nearest_regions],
-                dtype=torch.float32
-            )      
-
-            features = torch.stack([
-                torch.tensor(list(r['features'].values()), dtype=torch.float32)
-                for r in nearest_regions
-            ], dim=0)
-            all_nearest_centres.append(centres)
-            all_nearest_features.append(features)
         return torch.stack(all_nearest_centres, dim=0), torch.stack(all_nearest_features, dim=0) 
     
     
