@@ -13,50 +13,71 @@ from PIL import Image
 import torchvision.transforms as T
 from models.OSM_BE_Resnet_TTE import OSM_BER_TTE, Regional_TTE
 from rtree import index
+from scipy.spatial import KDTree
 
 
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
 class RegionEmbeddingManager:
-    def __init__(self, region_json):
+    def __init__(self, region_json, args):
+        """
+        region_json: list of region dicts
+        args.absPath: base path for embeddings
+        """
 
-        self.region_json = region_json
-        self.bboxes = []
-        self.patch_ids = []
-        
-        for r in self.region_json:
-            patch_id = r['patch_id']
-            bbox = r['bbox']
-            self.bboxes.append((bbox['min_lon'], bbox['min_lat'], bbox['max_lon'], bbox['max_lat']))
-            self.patch_ids.append(patch_id)
-        
-        self.index_to_patch_id = {i: patch_id for i, patch_id in enumerate(self.patch_ids)}
-        print("Building rtree")
-        self.rtree_idx = index.Index()
-        for i, bbox_coords in enumerate(self.bboxes):
-            self.rtree_idx.insert(i, bbox_coords)
-        print("Finished building rtree with {} regions".format(len(self.region_json)))
+        centres = []
+        features = []
 
+        for r in region_json:
+            centres.append([
+                r["center"]["x"],
+                r["center"]["y"],
+            ])
 
-    def find_n_nearest_region(self, xs, ys, n):
+            emb_path = os.path.join(args.absPath, r["embedding_path"])
+            features.append(torch.load(emb_path, map_location=torch.device('cpu')))  # [F], CPU
 
-        all_nearest_features = []
-        for x, y in zip(xs, ys):
-            query_pt = (float(x), float(y))
-            nearest_indices = list(self.rtree_idx.nearest(query_pt, n))
-            nearest_regions = [self.region_json[i] for i in nearest_indices]
+        # [R, 2] region centers (CPU)
+        self.centres = torch.tensor(centres, dtype=torch.float32)
 
-            features = torch.stack([
-                torch.tensor(list(r['features'].values()), dtype=torch.float32)
-                for r in nearest_regions
-            ], dim=0)
-            all_nearest_features.append(features)
-        return torch.stack(all_nearest_features, dim=0)
-    
+        # [R, F] region embeddings (CPU)
+        self.features = torch.stack(features, dim=0)
+
+        # KD-tree built on centers (CPU)
+        self.kdtree : KDTree = KDTree(self.centres.numpy())
+
+        print(f"KDTree initialized with {len(self.centres)} regions")
+
+    @torch.no_grad()
+    def find_n_nearest_region(self, xs, ys, k):
+        """
+        xs, ys: 1D arrays or tensors of length N (CPU)
+        k: number of nearest regions
+
+        returns:
+            centres  -> [N, k, 2]
+            features -> [N, k, F]
+        """
+
+        if torch.is_tensor(xs):
+            xs = xs.cpu().numpy()
+        if torch.is_tensor(ys):
+            ys = ys.cpu().numpy()
+
+        query = np.stack([xs, ys], axis=1)  # [N, 2]
+
+        _, idx = self.kdtree.query(query, k=k)  # [N, k]
+
+        idx = torch.from_numpy(idx).long()
+
+        centres = self.centres[idx]    # [N, k, 2]
+        features = self.features[idx]  # [N, k, F]
+
+        return centres, features
     
 def collate_func(data, args, info_all):
 
-    region_manager, edgeinfo, nodeinfo, scaler, scaler2,(region_mean, region_std) = info_all
+    region_manager, edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = [np.asarray(d[1]) for d in data]
@@ -87,14 +108,13 @@ def collate_func(data, args, info_all):
     con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
     gps = con_links[:, 6:8].astype(np.float32).reshape(-1, 2)
     
-    region_feature = region_manager.find_n_nearest_region(gps[:,0], gps[:,1], 1)
-    region_feature = region_feature.squeeze(1)  # shape: [total_links, feature_dim]
+    region_center, region_feature = region_manager.find_n_nearest_region(gps[:,0], gps[:,1], 1)
 
-    region_mean = region_mean.to(region_feature.device)
-    region_std = region_std.to(region_feature.device)
+    region_feature = region_feature  # shape: [total_links,1, 7,7, feature_dim]
 
-    region_feature = torch.log1p(region_feature) 
-    region_feature = (region_feature - region_mean) / region_std
+    region_center = region_center # shape: [total_links,1, 2]
+    offset = (gps - region_center) / args.data_config['patch']['patch_size']  # shape: [total_links, 2]
+    print(region_feature.shape)
 
     mask = np.arange(lens.max()) < lens[:, None] # mask.shape = [batch_size, max_len]
 
@@ -133,6 +153,7 @@ def collate_func(data, args, info_all):
 
     return {'links':torch.from_numpy(padded),
             'region_feature': region_feature,
+            'offset': offset,
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
@@ -196,11 +217,7 @@ def load_datadoct_pre(args):
     with open(os.path.join(args.absPath,args.data_config['patch']['patch_json']), 'r') as f:
         patch_json = json.load(f)
         
-    region_manager = RegionEmbeddingManager(patch_json)
-    with open(os.path.join(args.absPath,args.data_config['patch']['region_stats']), 'r') as f:
-        region_stats = json.load(f)
-    region_mean = torch.tensor(region_stats['mean'], dtype=torch.float32)
-    region_std = torch.tensor(region_stats['std'], dtype=torch.float32)
+    region_manager = RegionEmbeddingManager(patch_json, args)
 
     if "porto" in args.dataset:
         scaler = StandardScaler()
@@ -225,7 +242,7 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [region_manager,edgeinfo, nodeinfo, scaler, scaler2, (region_mean, region_std)]
+    info_all = [region_manager,edgeinfo, nodeinfo, scaler, scaler2]
     
 
 class Datadict(Dataset):

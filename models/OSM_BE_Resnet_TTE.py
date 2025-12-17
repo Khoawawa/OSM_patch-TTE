@@ -14,7 +14,6 @@ batch_first = False
 # - visual stream
 # - context stream
 # every stream have their own block 
-# then they are fed into a cross attention fusion block
 # then go into mlp to extract the time#
 class Regional_TTE(torch.nn.Module):
     def __init__(self,r_input_dim,r_hidden_dim,r_output_dim,
@@ -33,10 +32,11 @@ class Regional_TTE(torch.nn.Module):
         )
     def forward(self, input_, args):
         # visual input
-        region_features = input_['region_feature'] # (B*L, 1, r_input_dim)
+        region_features = input_['region_feature'] # (B*L, 1, r_input_dim,7,7)
+        offset = input_['offset'] # (B*L, 1, 2)
         valid_mask = input_['valid_mask'] # (B,T)
         # visual output
-        regional_output = self.regional_encoder(region_features, valid_mask) # (B, L, O)
+        regional_output = self.regional_encoder(region_features, offset, valid_mask) # (B, L, O)
         # context output
         ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
         # temporal sendoff
