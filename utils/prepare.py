@@ -109,10 +109,8 @@ def collate_func(data, args, info_all):
     gps = con_links[:, 6:8].astype(np.float32).reshape(-1, 2)
     
     region_center, region_feature = region_manager.find_n_nearest_region(gps[:,0], gps[:,1], 1)
-
-    region_feature = region_feature  # shape: [total_links,1, 7,7, feature_dim]
-
-    region_center = region_center # shape: [total_links,1, 2]
+    
+    gps = torch.from_numpy(gps).float()
     offset = (gps - region_center) / args.data_config['patch']['patch_size']  # shape: [total_links, 2]
     print(region_feature.shape)
 
