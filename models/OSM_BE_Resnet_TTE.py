@@ -31,11 +31,12 @@ class MulT_TTE(torch.nn.Module):
         )
     def forward(self, input_, args):
         # visual input
+        valid_mask = input_['valid_mask']  # (B,T)
         representation, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
 
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
-        device_type = "cuda" if hiddens.is_cuda else "cpu"
+        device_type = "cuda"
         with torch.amp.autocast(device_type=device_type, enabled=False):
             decoder = self.decoder(hiddens.float(), input_['lens'].long())
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
