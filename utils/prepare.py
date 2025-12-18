@@ -11,7 +11,7 @@ from torch.utils.data.dataloader import DataLoader
 from utils.util import StandardScaler2
 from PIL import Image
 import torchvision.transforms as T
-from models.OSM_BE_Resnet_TTE import OSM_BER_TTE, Regional_TTE
+from models.OSM_BE_Resnet_TTE import OSM_BER_TTE, Regional_TTE, MulT_TTE
 from rtree import index
 from scipy.spatial import KDTree
 
@@ -20,7 +20,7 @@ highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'tr
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
 def collate_func(data, args, info_all):
 
-    region_manager, edgeinfo, nodeinfo, scaler, scaler2 = info_all
+    edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = [np.asarray(d[1]) for d in data]
@@ -148,8 +148,6 @@ def load_datadoct_pre(args):
         
     with open(os.path.join(args.absPath,args.data_config['patch']['patch_json']), 'r') as f:
         patch_json = json.load(f)
-        
-    region_manager = RegionEmbeddingManager(patch_json, args)
 
     if "porto" in args.dataset:
         scaler = StandardScaler()
@@ -174,7 +172,7 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [region_manager,edgeinfo, nodeinfo, scaler, scaler2]
+    info_all = [edgeinfo, nodeinfo, scaler, scaler2]
     
 
 class Datadict(Dataset):
