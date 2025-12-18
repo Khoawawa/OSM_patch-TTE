@@ -46,7 +46,7 @@ class MulT_TTE(torch.nn.Module):
         # visual input
         valid_mask = input_['valid_mask']  # (B,T)
         representation, loss_1,timene_summary = self.context_encoder(input_, args)
-
+        representation = self.represent(representation)  # (B,T,seq_hidden_dim)
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
         device_type = "cuda"
