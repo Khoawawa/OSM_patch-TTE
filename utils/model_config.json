@@ -99,5 +99,16 @@
         "bert_attention_heads": 8,
         "bert_hidden_size": 64,
         "bert_hidden_layers":4
+    },
+    "Regional_34_0.01_TTE":{
+        "r_input_dim": 512,
+        "r_hidden_dim": 128,
+        "r_output_dim": 64,
+        "seq_hidden_dim": 128,
+        "seq_layer": 2,
+        "decoder_layer": 3,
+        "bert_attention_heads": 8,
+        "bert_hidden_size": 64,
+        "bert_hidden_layers":4
     }
 }
