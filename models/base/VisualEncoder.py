@@ -51,11 +51,8 @@ class CA_ResnetEncoder(nn.Module):
         j_t = (center_j + dx).clamp(0,W-1)
         
         idx_flat = (i_t * W + j_t).long() # (L,)
-        
-        patch_vectors = torch.gather(
-            patches, 1, idx_flat.unsqueeze(-1).unsqueeze(-1).expand(-1,-1,D) # (L,) -> (L,1,1) 
-        ) # (L,1,D)
-        
+        patch_vectors = patches[torch.arange(patches.size(0)), idx_flat].unsqueeze(1) # (L,1,resnet_out)
+
         return patch_vectors
     def calc_cosine_sim(self, x1, x2):
         sim = F.cosine_similarity(x1, x2, dim=2)
@@ -74,10 +71,8 @@ class CA_ResnetEncoder(nn.Module):
             out = patches.flatten(2).transpose(1,2) # (U, 49, resnet_out)
             
         B, T = valid_mask.shape
-        
-        gathered_patch_embs = out[patch_ids] # (L, 784, resnet_out)
         # adapter
-        adapter_out = self.adapter(gathered_patch_embs) # (L, 784, O)
+        adapter_out = self.adapter(out[patch_ids]) # (L, 784, O)
         # get query patch
         query_patch = self.get_offset_patch_embs(adapter_out, offsets) # (L, 1, O)
         # topk cosine similarity
@@ -87,8 +82,7 @@ class CA_ResnetEncoder(nn.Module):
         #     adapter_out, 1, indices.unsqueeze(-1).expand(-1,-1,adapter_out.shape[-1])
         # ) # (L, topk, resnet_out)
         
-        attn_out = self.ca(query_patch,adapter_out) # (L, 1, O)
-        attn_out = attn_out.squeeze(1) # (L, O)
+        attn_out = self.ca(query_patch,adapter_out).squeeze(1) # (L, O)
         
         assert torch.isnan(attn_out).any() == False, "nan in attn_out"
 

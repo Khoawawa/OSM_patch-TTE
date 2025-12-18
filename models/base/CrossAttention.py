@@ -33,11 +33,9 @@ class CrossAttention(torch.nn.Module):
 class RMSNorm(nn.Module):
     def __init__(self, dim, eps=1e-8):
         super().__init__()
-        self.eps = eps
         self.weight = nn.Parameter(torch.ones(dim))
+        self.eps = eps
 
     def forward(self, x):
-        variance = x.to(torch.float32).pow(2).mean(dim=-1, keepdim=True)
-        x_normed = x * torch.rsqrt(variance + self.eps)
-
-        return self.weight * x_normed.to(x.dtype)
+        norm = x.pow(2).mean(dim=-1, keepdim=True).add(self.eps).rsqrt()
+        return self.weight * x * norm
