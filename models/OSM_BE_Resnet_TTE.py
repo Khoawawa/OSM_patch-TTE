@@ -23,13 +23,14 @@ class OSM_BER_TTE(torch.nn.Module):
         super().__init__()
         self.visual_encoder = CA_ResnetEncoder(adapter_hidden_dim,use_precomputed=use_precomputed)
         visual_out_dim = self.visual_encoder.output_dim # 384
+        
+        self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
+        self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
         self.represent = nn.Sequential(
             nn.Linear(visual_out_dim + self.context_encoder.hidden_size, seq_hidden_dim),
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, seq_hidden_dim)
         )
-        self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
-        self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.mlp = nn.Sequential(
             nn.Linear(seq_hidden_dim + 33, seq_hidden_dim),
