@@ -146,9 +146,6 @@ def load_datadoct_pre(args):
     with open(os.path.join(args.absPath,args.data_config['nodes_dir']), 'rb') as f:
         nodeinfo = pickle.load(f)
         
-    with open(os.path.join(args.absPath,args.data_config['patch']['patch_json']), 'r') as f:
-        patch_json = json.load(f)
-
     if "porto" in args.dataset:
         scaler = StandardScaler()
         scaler.fit([[0, 0]])
