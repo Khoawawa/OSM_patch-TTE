@@ -24,6 +24,9 @@ class ContextEncoder(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(self.timene_dim, self.timene_dim)
         )
+        self.represent = nn.Sequential(
+            nn.Linear()
+        )
         self.hidden_size = 2 + 5 + 16 + self.timene_dim
 
     def seg_embedding(self, x):
@@ -43,11 +46,11 @@ class ContextEncoder(nn.Module):
         datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 3 + 10 + 20 = 33
 
         loss_1, hidden_states, prediction_scores = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']])
-        # 
         timene_input = torch.cat([self.seg_embedding_learning.bert.embeddings.word_embeddings(inputs['rawlinks']), datetimerep], dim=-1)
         timene = self.timene(timene_input)+timene_input
-        features = torch.cat([feature[..., 1:3], gpsrep,highwayrep, timene], dim=-1) # 2 + 5 + 16 + 33 + bert_hiden_size
-        return features, loss_1, (weekrep,daterep,timerep)
+        timene_summary = timene.mean(dim=1) # (B, bert_hiden_size + 33)
+        features = torch.cat([feature[..., 1:3], gpsrep,highwayrep], dim=-1) # 2 + 5 + 16 + 33 + bert_hiden_size
+        return features, loss_1, (weekrep,daterep,timerep,timene_summary)
         
 if __name__ == "__main__":
     model = ContextEncoder(8, 512, 0, 4)

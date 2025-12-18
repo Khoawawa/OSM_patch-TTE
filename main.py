@@ -21,6 +21,7 @@ if __name__ == '__main__':
     parser.add_argument('-cl', '--loss_val', type=float, help='intput the specific parameter for smoothL1',  default=300.)
     parser.add_argument('-e', '--epochs', type=int, help='input the max epochs',default=50)
     parser.add_argument('-b', '--beta', type=float, help='intput the learning preference between MSG and TTE (the bigger the value, the more preference for TTE.)',default=0.7)
+    parser.add_argument('-ld', '--lambda_delta', type=float, help='input the weight for time delta regularization', default=1e-4)
     parser.add_argument('-l', '--lr', type=float, help='intput the initial learning rate',default=0.001)
     parser.add_argument('-w', '--weight_decay', type=float, help='intput the weight decay of optimization',default=0.00001)
     parser.add_argument('-p', '--patience', type=int, help='intput the max iteration times of early stop',default=10)

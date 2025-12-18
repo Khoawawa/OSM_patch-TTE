@@ -9,12 +9,6 @@ import torch.nn as nn
 import math
 import copy
 batch_first = False
-# from a abstract view point 
-# there is 2 stream
-# - visual stream
-# - context stream
-# every stream have their own block 
-# then go into mlp to extract the time#
 class MulT_TTE(torch.nn.Module):
     def __init__(self,
                  seq_hidden_dim, seq_layer,
@@ -24,28 +18,47 @@ class MulT_TTE(torch.nn.Module):
         self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size) # trip specific encoder
         self.temporal_block = LayerNormGRU(input_dim=self.context_encoder.hidden_size, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
+        self.pool_attn = nn.Linear(seq_hidden_dim,1)
         self.mlp = nn.Sequential(
             nn.Linear(seq_hidden_dim + 33, seq_hidden_dim),
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
+        self.delta_mlp = nn.Sequential(
+            nn.Linear(seq_hidden_dim + 33, seq_hidden_dim // 2),
+            nn.LeakyReLU(),
+            nn.Linear(seq_hidden_dim // 2, 1)
+        )
+    def attention_pooling(self, decoder, valid_mask):
+        # (B,T,seq_hidden_dim)
+        scores = self.pool_attn(decoder).squeeze(-1)  # (B,T)
+        scores = scores.masked_fill(valid_mask == 0, -1e9)
+        attn_weights = F.softmax(scores, dim=-1)
+        pooled = torch.bmm(attn_weights.unsqueeze(1), decoder).squeeze(1)  # (B, seq_hidden_dim)
+        return pooled
+    
     def forward(self, input_, args):
         # visual input
         valid_mask = input_['valid_mask']  # (B,T)
-        representation, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
+        representation, loss_1, (weekrep,daterep,timerep,timene_summary) = self.context_encoder(input_, args)
 
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
         device_type = "cuda"
         with torch.amp.autocast(device_type=device_type, enabled=False):
-            decoder = self.decoder(hiddens.float(), input_['lens'].long())
+            decoder = self.decoder(hiddens.float(), input_['lens'].long()).to(hiddens.dtype)
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
-        # sum pooling
-        decoder = decoder * valid_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
-        pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
-        pooled_decoder = torch.cat([pooled_decoder, weekrep[:,0], daterep[:,0], timerep[:,0]], dim=-1) # (B,seq_hidden_dim + 33)
-        output = self.mlp(pooled_decoder) # (B,1)
-        return output, loss_1
+        # attention pooling
+        pooled_decoder = self.attention_pooling(decoder, valid_mask) # (B,seq_hidden_dim)
+
+        pooled_decoder_cong = torch.cat([pooled_decoder, weekrep[:,0], daterep[:,0], timerep[:,0], timene_summary], dim=-1) # (B,seq_hidden_dim + 33 + 1)
+
+        t_base = self.mlp(pooled_decoder) # (B,1)
+        t_delta = F.softplus(self.delta_mlp(pooled_decoder_cong)) # (B,1)
+
+        t_obs = t_base + t_delta
+
+        return t_obs, loss_1, t_delta
 
 class Norm(nn.Module):
     def __init__(self, d_model, eps=1e-6):
@@ -84,25 +97,18 @@ def attention(q, k, v, d_k, mask=None, dropout=None):
 class MultiHeadAttention(nn.Module):
     def __init__(self, heads, d_model, dropout=0.1):
         super().__init__()
+        self.attn = nn.MultiheadAttention(
+            embed_dim=d_model,
+            num_heads=heads,
+            dropout=dropout,
+            batch_first=False   # because your x is (T,B,D)
+        )
 
-        self.d_model = d_model
-        self.d_k = d_model // heads
-        self.h = heads
-
-        self.q_linear = nn.Linear(d_model, d_model)
-        self.v_linear = nn.Linear(d_model, d_model)
-        self.k_linear = nn.Linear(d_model, d_model)
-        self.attn_1 = nn.MultiheadAttention(embed_dim=d_model, dropout=dropout, num_heads=self.h)
-
-    def forward(self, q, k, v, len):
-        # perform linear operation and split into N heads
-        k = self.k_linear(k)
-        q = self.q_linear(q)
-        v = self.v_linear(v)
-        device = len.device
-        max_len = torch.max(len).item()
-        mask = torch.arange(max_len, device=device).unsqueeze(0) < len.unsqueeze(1)
-        attn_output, _ = self.attn_1(q, k, v, key_padding_mask=~mask)
+    def forward(self, x, lens):
+        device = lens.device
+        max_len = x.size(0)
+        mask = torch.arange(max_len, device=device)[None, :] >= lens[:, None]
+        attn_output, _ = self.attn(x, x, x, key_padding_mask=mask)
         return attn_output
 
 
@@ -126,11 +132,11 @@ class FeedForward(nn.Module):
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, heads=1, dropout=0.1):
         super().__init__()
-        self.norm_1 = nn.LayerNorm(d_model) #
+        # self.norm_1 = nn.LayerNorm(d_model) #
         self.norm_2 = nn.LayerNorm(d_model)
         self.norm_3 = nn.LayerNorm(d_model)
 
-        self.dropout_1 = nn.Dropout(dropout)    #
+        # self.dropout_1 = nn.Dropout(dropout)    #
         self.dropout_2 = nn.Dropout(dropout)
         self.dropout_3 = nn.Dropout(dropout)
 
@@ -141,13 +147,13 @@ class DecoderLayer(nn.Module):
 
     def forward(self, x, len):
         x2 = self.norm_2(x)
-        x = x + self.dropout_2(self.attn_2(x2, x2, x2, len))
+        x = x + self.dropout_2(self.attn_2(x2, len))
         x2 = self.norm_3(x)
         x = x + self.dropout_3(self.ff(x2))
         return x
 
 def get_clones(module, N):
-    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
+    return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
 class Decoder(nn.Module):
     def __init__(self, d_model, N=3, heads=1, dropout=0.1):

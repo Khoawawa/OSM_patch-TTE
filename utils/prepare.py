@@ -222,12 +222,15 @@ def create_model(args):
         return MulT_TTE(**model_config)
         
 
-def create_main_loss(loss_bert,loss, args):
+def create_main_loss(loss_bert,loss, t_delta,args):
     beta = args.beta
+    lambda_delta = args.lambda_delta
+    delta_reg = lambda_delta * torch.mean(t_delta)
     bert_weight  = 1 - beta
-        
+    
     return bert_weight*loss_bert / (loss_bert / loss + 1e-4).detach()\
             + beta * loss\
+            + delta_reg
 
 def create_loss(args):
     if args.loss == 'rmse':
