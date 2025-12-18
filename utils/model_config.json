@@ -111,7 +111,7 @@
         "bert_hidden_size": 64,
         "bert_hidden_layers":4
     },
-    "MulT_TTE":{
+    "MulT_TTE_2_steam":{
         "seq_hidden_dim": 128,
         "seq_layer": 2,
         "decoder_layer": 3,
