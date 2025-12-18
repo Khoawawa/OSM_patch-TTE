@@ -15,13 +15,12 @@ batch_first = False
 # - context stream
 # every stream have their own block 
 # then go into mlp to extract the time#
-class Regional_TTE(torch.nn.Module):
-    def __init__(self,r_input_dim,r_hidden_dim,r_output_dim,
+class MulT_TTE(torch.nn.Module):
+    def __init__(self,
                  seq_hidden_dim, seq_layer,
                  decoder_layer,
                  bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
         super().__init__()
-        self.regional_encoder = RegionEncoder(r_input_dim,r_hidden_dim,r_output_dim) # region specific encoder
         self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size) # trip specific encoder
         self.temporal_block = LayerNormGRU(input_dim=self.regional_encoder.output_dim + self.context_encoder.hidden_size, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
@@ -32,70 +31,17 @@ class Regional_TTE(torch.nn.Module):
         )
     def forward(self, input_, args):
         # visual input
-        region_features = input_['region_feature'] # (B*L, 1, r_input_dim,7,7)
-        offset = input_['offset'] # (B*L, 1, 2)
-        valid_mask = input_['valid_mask'] # (B,T)
-        # visual output
-        regional_output = self.regional_encoder(region_features, offset, valid_mask) # (B, L, O)
-        # context output
-        ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
-        # temporal sendoff
-        representation = torch.cat([regional_output, ctx_output], dim=-1) # (B,T,Res + Ctx)
+        representation, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
+
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
-        # decoder = self.decoder(hiddens, input_['lens'].long()) # (T,B,seq_hidden_dim)
-        # if torch.isnan(decoder).sum() > 0:
         device_type = "cuda" if hiddens.is_cuda else "cpu"
         with torch.amp.autocast(device_type=device_type, enabled=False):
             decoder = self.decoder(hiddens.float(), input_['lens'].long())
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
-            
         # sum pooling
         decoder = decoder * valid_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
         pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
-        # add back the weekrep, daterep, timerep for making model learn time of important events
-        pooled_decoder = torch.cat([pooled_decoder, weekrep[:,0], daterep[:,0], timerep[:,0]], dim=-1) # (B,seq_hidden_dim + 33)
-        output = self.mlp(pooled_decoder) # (B,1)
-        return output, loss_1
-class OSM_BER_TTE(torch.nn.Module):
-    def __init__(self,v_output_dim,
-                 seq_hidden_dim, seq_layer,
-                 decoder_layer,
-                 bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
-        super().__init__()
-        self.visual_encoder = ResnetEncoder(output_dim=v_output_dim)
-        visual_out_dim = self.visual_encoder.output_dim # 240
-        self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
-        self.temporal_block = LayerNormGRU(input_dim=visual_out_dim + self.context_encoder.hidden_size, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
-        self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
-        self.mlp = nn.Sequential(
-            nn.Linear(seq_hidden_dim + 33, seq_hidden_dim),
-            nn.LeakyReLU(),
-            nn.Linear(seq_hidden_dim, 1)
-        )
-    def forward(self, input_, args):
-        # visual input
-        patch_embs = input_['patches_emb']  # (total_link, 2048)
-        valid_mask = input_['valid_mask'] # (B,T)
-        # visual output
-        visual_output = self.visual_encoder(patch_embs,valid_mask) # (B, T, 384)
-        # context output
-        ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
-        # temporal sendoff
-        representation = torch.cat([visual_output, ctx_output], dim=-1) # (B,T,Res + Ctx)
-        representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
-        hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
-        # decoder = self.decoder(hiddens, input_['lens'].long()) # (T,B,seq_hidden_dim)
-        # if torch.isnan(decoder).sum() > 0:
-        device_type = "cuda" if hiddens.is_cuda else "cpu"
-        with torch.amp.autocast(device_type=device_type, enabled=False):
-            decoder = self.decoder(hiddens.float(), input_['lens'].long())
-        decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
-            
-        # sum pooling
-        decoder = decoder * valid_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
-        pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
-        # add back the weekrep, daterep, timerep for making model learn time of important events
         pooled_decoder = torch.cat([pooled_decoder, weekrep[:,0], daterep[:,0], timerep[:,0]], dim=-1) # (B,seq_hidden_dim + 33)
         output = self.mlp(pooled_decoder) # (B,1)
         return output, loss_1

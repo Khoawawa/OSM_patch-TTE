@@ -18,100 +18,6 @@ from scipy.spatial import KDTree
 
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
-class RegionEmbeddingManager:
-    def __init__(self, region_json, args):
-        """
-        region_json: list of region dicts
-            r["center"]["x"] = longitude
-            r["center"]["y"] = latitude
-        args.absPath: base path for embeddings
-        """
-
-        lats = []
-        lons = []
-        features = []
-
-        for r in region_json:
-            lon = r["center"]["x"]
-            lat = r["center"]["y"]
-
-            lons.append(lon)
-            lats.append(lat)
-
-            emb_path = os.path.join(args.absPath, r["embedding_path"])
-            features.append(
-                torch.load(emb_path, map_location="cpu")
-            )  # [F]
-
-        # Save lat/lon (CPU, for returning)
-        self.centres_latlon = torch.tensor(
-            np.stack([lons, lats], axis=1),
-            dtype=torch.float32
-        )  # [R, 2]
-
-        # Convert lat/lon → Cartesian (meters)
-        self.lat0 = float(np.mean(lats))
-        centres_xy = self._latlon_to_xy(np.array(lats), np.array(lons))
-
-        self.centres_xy = torch.tensor(
-            centres_xy, dtype=torch.float32
-        )  # [R, 2]
-
-        # Region embeddings
-        self.features = torch.stack(features, dim=0)  # [R, F]
-
-        # KDTree on Cartesian coords
-        self.kdtree = KDTree(self.centres_xy.numpy())
-
-        print(f"KDTree initialized with {len(self.centres_xy)} regions")
-
-    @staticmethod
-    def _latlon_to_xy(lats, lons, lat0=None):
-        """
-        Convert lat/lon to local Cartesian coordinates (meters)
-        """
-        R = 6371000.0  # Earth radius (m)
-
-        if lat0 is None:
-            lat0 = np.mean(lats)
-
-        x = np.deg2rad(lons) * R * np.cos(np.deg2rad(lat0))
-        y = np.deg2rad(lats) * R
-
-        return np.stack([x, y], axis=1)
-
-    @torch.no_grad()
-    def find_n_nearest_region(self, xs, ys, k):
-        """
-        xs, ys: longitude, latitude (CPU tensor or numpy), shape [N]
-        k: number of nearest regions
-
-        returns:
-            centres  -> [N, k, 2]   (lon, lat)
-            features -> [N, k, F]
-        """
-
-        if torch.is_tensor(xs):
-            xs = xs.cpu().numpy()
-        if torch.is_tensor(ys):
-            ys = ys.cpu().numpy()
-
-        # Convert query points to Cartesian
-        query_xy = self._latlon_to_xy(
-            lats=ys,
-            lons=xs,
-            lat0=self.lat0
-        )  # [N, 2]
-
-        _, idx = self.kdtree.query(query_xy, k=k)  # [N, k]
-
-        idx = torch.from_numpy(idx).long()
-
-        centres = self.centres_latlon[idx]  # [N, k, 2]
-        features = self.features[idx]       # [N, k, F]
-
-        return centres, features
-    
 def collate_func(data, args, info_all):
 
     region_manager, edgeinfo, nodeinfo, scaler, scaler2 = info_all
@@ -143,13 +49,6 @@ def collate_func(data, args, info_all):
         return infos
 
     con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
-    gps = con_links[:, 6:8].astype(np.float32).reshape(-1, 2)
-    
-    region_center, region_feature = region_manager.find_n_nearest_region(gps[:,0], gps[:,1], 1)
-    region_center = region_center.squeeze(1)
-    gps = torch.from_numpy(gps).float()
-    offset = (gps - region_center) / (args.data_config['patch']['patch_size'] / 2)  # shape: [total_links, 2]
-    # print(region_feature.shape)
 
     mask = np.arange(lens.max()) < lens[:, None] # mask.shape = [batch_size, max_len]
 
@@ -187,8 +86,6 @@ def collate_func(data, args, info_all):
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
 
     return {'links':torch.from_numpy(padded),
-            'region_feature': region_feature,
-            'offset': offset,
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
@@ -326,6 +223,8 @@ def create_model(args):
         model_config = json.load(file)[args.model]
     args.model_config = model_config
     model_config['pad_token_id'] = args.data_config['edges'] + 1
+    if "MulT_TTE" in args.model:
+        return MulT_TTE(**model_config)
     if "OSM_BER_TTE" in args.model:
         return OSM_BER_TTE(**model_config)
     if "region" in args.model.lower():
