@@ -23,8 +23,13 @@ class OSM_BER_TTE(torch.nn.Module):
         super().__init__()
         self.visual_encoder = CA_ResnetEncoder(adapter_hidden_dim,use_precomputed=use_precomputed)
         visual_out_dim = self.visual_encoder.output_dim # 384
+        self.represent = nn.Sequential(
+            nn.Linear(visual_out_dim + self.context_encoder.hidden_size, seq_hidden_dim),
+            nn.LeakyReLU(),
+            nn.Linear(seq_hidden_dim, seq_hidden_dim)
+        )
+        self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
-        self.temporal_block = LayerNormGRU(input_dim=visual_out_dim + self.context_encoder.hidden_size, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.mlp = nn.Sequential(
             nn.Linear(seq_hidden_dim + 33, seq_hidden_dim),
@@ -43,7 +48,7 @@ class OSM_BER_TTE(torch.nn.Module):
         # context output
         ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
         # temporal sendoff
-        representation = torch.cat([visual_output, ctx_output], dim=-1) # (B,T,Res + Ctx)
+        representation = self.represent(torch.cat([visual_output, ctx_output], dim=-1)) 
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
         # decoder = self.decoder(hiddens, input_['lens'].long()) # (T,B,seq_hidden_dim)
