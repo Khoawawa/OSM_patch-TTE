@@ -37,7 +37,8 @@ class MulT_TTE(torch.nn.Module):
     def attention_pooling(self, decoder, valid_mask):
         # (B,T,seq_hidden_dim)
         scores = self.pool_attn(decoder).squeeze(-1)  # (B,T)
-        scores = scores.masked_fill(valid_mask == 0, -1e9)
+        neg_inf = torch.tensor(-6e4, dtype=scores.dtype, device=scores.device)
+        scores = scores.masked_fill(valid_mask == 0, neg_inf)
         attn_weights = F.softmax(scores, dim=-1)
         pooled = torch.bmm(attn_weights.unsqueeze(1), decoder).squeeze(1)  # (B, seq_hidden_dim)
         return pooled
