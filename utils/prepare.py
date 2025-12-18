@@ -22,40 +22,72 @@ class RegionEmbeddingManager:
     def __init__(self, region_json, args):
         """
         region_json: list of region dicts
+            r["center"]["x"] = longitude
+            r["center"]["y"] = latitude
         args.absPath: base path for embeddings
         """
 
-        centres = []
+        lats = []
+        lons = []
         features = []
 
         for r in region_json:
-            centres.append([
-                r["center"]["x"],
-                r["center"]["y"],
-            ])
+            lon = r["center"]["x"]
+            lat = r["center"]["y"]
+
+            lons.append(lon)
+            lats.append(lat)
 
             emb_path = os.path.join(args.absPath, r["embedding_path"])
-            features.append(torch.load(emb_path, map_location=torch.device('cpu')))  # [F], CPU
+            features.append(
+                torch.load(emb_path, map_location="cpu")
+            )  # [F]
 
-        # [R, 2] region centers (CPU)
-        self.centres = torch.tensor(centres, dtype=torch.float32)
+        # Save lat/lon (CPU, for returning)
+        self.centres_latlon = torch.tensor(
+            np.stack([lons, lats], axis=1),
+            dtype=torch.float32
+        )  # [R, 2]
 
-        # [R, F] region embeddings (CPU)
-        self.features = torch.stack(features, dim=0)
+        # Convert lat/lon → Cartesian (meters)
+        self.lat0 = float(np.mean(lats))
+        centres_xy = self._latlon_to_xy(np.array(lats), np.array(lons))
 
-        # KD-tree built on centers (CPU)
-        self.kdtree : KDTree = KDTree(self.centres.numpy())
+        self.centres_xy = torch.tensor(
+            centres_xy, dtype=torch.float32
+        )  # [R, 2]
 
-        print(f"KDTree initialized with {len(self.centres)} regions")
+        # Region embeddings
+        self.features = torch.stack(features, dim=0)  # [R, F]
+
+        # KDTree on Cartesian coords
+        self.kdtree = KDTree(self.centres_xy.numpy())
+
+        print(f"KDTree initialized with {len(self.centres_xy)} regions")
+
+    @staticmethod
+    def _latlon_to_xy(lats, lons, lat0=None):
+        """
+        Convert lat/lon to local Cartesian coordinates (meters)
+        """
+        R = 6371000.0  # Earth radius (m)
+
+        if lat0 is None:
+            lat0 = np.mean(lats)
+
+        x = np.deg2rad(lons) * R * np.cos(np.deg2rad(lat0))
+        y = np.deg2rad(lats) * R
+
+        return np.stack([x, y], axis=1)
 
     @torch.no_grad()
     def find_n_nearest_region(self, xs, ys, k):
         """
-        xs, ys: 1D arrays or tensors of length N (CPU)
+        xs, ys: longitude, latitude (CPU tensor or numpy), shape [N]
         k: number of nearest regions
 
         returns:
-            centres  -> [N, k, 2]
+            centres  -> [N, k, 2]   (lon, lat)
             features -> [N, k, F]
         """
 
@@ -64,14 +96,19 @@ class RegionEmbeddingManager:
         if torch.is_tensor(ys):
             ys = ys.cpu().numpy()
 
-        query = np.stack([xs, ys], axis=1)  # [N, 2]
+        # Convert query points to Cartesian
+        query_xy = self._latlon_to_xy(
+            lats=ys,
+            lons=xs,
+            lat0=self.lat0
+        )  # [N, 2]
 
-        _, idx = self.kdtree.query(query, k=k)  # [N, k]
+        _, idx = self.kdtree.query(query_xy, k=k)  # [N, k]
 
         idx = torch.from_numpy(idx).long()
 
-        centres = self.centres[idx]    # [N, k, 2]
-        features = self.features[idx]  # [N, k, F]
+        centres = self.centres_latlon[idx]  # [N, k, 2]
+        features = self.features[idx]       # [N, k, F]
 
         return centres, features
     
