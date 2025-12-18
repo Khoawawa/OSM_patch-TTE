@@ -11,7 +11,7 @@ from torch.utils.data.dataloader import DataLoader
 from utils.util import StandardScaler2
 from PIL import Image
 import torchvision.transforms as T
-from models.OSM_BE_Resnet_TTE import OSM_BER_TTE, Regional_TTE, MulT_TTE
+from models.OSM_BE_Resnet_TTE import MulT_TTE
 from rtree import index
 from scipy.spatial import KDTree
 
@@ -223,11 +223,6 @@ def create_model(args):
     model_config['pad_token_id'] = args.data_config['edges'] + 1
     if "MulT_TTE" in args.model:
         return MulT_TTE(**model_config)
-    if "OSM_BER_TTE" in args.model:
-        return OSM_BER_TTE(**model_config)
-    if "region" in args.model.lower():
-        return Regional_TTE(**model_config)
-
         
 
 def create_main_loss(loss_bert,loss, args):
