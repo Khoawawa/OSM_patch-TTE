@@ -16,16 +16,21 @@ class MulT_TTE(torch.nn.Module):
                  bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
         super().__init__()
         self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size) # trip specific encoder
-        self.temporal_block = LayerNormGRU(input_dim=self.context_encoder.hidden_size, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
+        self.represent = nn.Sequential(
+            nn.Linear(self.context_encoder.hidden_size, seq_hidden_dim),
+            nn.LeakyReLU(),
+            nn.Linear(seq_hidden_dim, seq_hidden_dim)
+        )
+        self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.pool_attn = nn.Linear(seq_hidden_dim,1)
         self.mlp = nn.Sequential(
-            nn.Linear(seq_hidden_dim + 33, seq_hidden_dim),
+            nn.Linear(seq_hidden_dim, seq_hidden_dim),
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
         self.delta_mlp = nn.Sequential(
-            nn.Linear(seq_hidden_dim + 33, seq_hidden_dim // 2),
+            nn.Linear(seq_hidden_dim + 33 + bert_hidden_size, seq_hidden_dim // 2),
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim // 2, 1)
         )
@@ -40,7 +45,7 @@ class MulT_TTE(torch.nn.Module):
     def forward(self, input_, args):
         # visual input
         valid_mask = input_['valid_mask']  # (B,T)
-        representation, loss_1, (weekrep,daterep,timerep,timene_summary) = self.context_encoder(input_, args)
+        representation, loss_1,timene_summary = self.context_encoder(input_, args)
 
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
@@ -51,7 +56,7 @@ class MulT_TTE(torch.nn.Module):
         # attention pooling
         pooled_decoder = self.attention_pooling(decoder, valid_mask) # (B,seq_hidden_dim)
 
-        pooled_decoder_cong = torch.cat([pooled_decoder, weekrep[:,0], daterep[:,0], timerep[:,0], timene_summary], dim=-1) # (B,seq_hidden_dim + 33 + 1)
+        pooled_decoder_cong = torch.cat([pooled_decoder,timene_summary], dim=-1) # (B,seq_hidden_dim + 33 + bert_hidden_size)
 
         t_base = self.mlp(pooled_decoder) # (B,1)
         t_delta = F.softplus(self.delta_mlp(pooled_decoder_cong)) # (B,1)

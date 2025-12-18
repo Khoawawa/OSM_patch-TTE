@@ -37,10 +37,10 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
     save_dict, best_mae = {'state_dict': copy.deepcopy(model.state_dict()),
                            'epoch': 0
                            }, 10000    
-    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=.2, patience=2,
-    #                                                  threshold=1e-2, threshold_mode='rel', min_lr=1e-7)
-    # if hasattr(args, 'scheduler_state_dict'):
-    #     scheduler.load_state_dict(args.scheduler_state_dict)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=.2, patience=2,
+                                                     threshold=1e-2, threshold_mode='rel', min_lr=1e-7)
+    if hasattr(args, 'scheduler_state_dict'):
+        scheduler.load_state_dict(args.scheduler_state_dict)
     print("LR: ", optimizer.param_groups[0]['lr'])
     scaler = torch.amp.GradScaler()
     try:
@@ -49,6 +49,9 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
             msg = []
             # training/val/test loop
             for phase in phases:
+                running_t_base = 0.0
+                running_t_delta = 0.0
+                running_t_obs = 0.0
                 if phase == 'train':
                     model.train()
                 else:
@@ -66,9 +69,9 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     truth_data = to_var(truth_data, args.device)
                     with torch.set_grad_enabled(phase == 'train'):
                         with torch.amp.autocast(args.device):
-                            output, loss_1 = model(features, args)                        
+                            output, loss_1,t_delta = model(features, args)                        
                             loss_2 = loss_func(truth=truth_data, predict=output)
-                            loss = create_main_loss(loss_1,loss_2,args)
+                            loss = create_main_loss(loss_1,loss_2,t_delta,args)
                         
                         if phase == 'train':    
                             optimizer.zero_grad()
@@ -82,6 +85,17 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                         f'{phase} epoch: {epoch}, {phase} loss: {(running_loss[phase] / steps) :.8f}, '
                         + desc
                     )
+                    if phase == 'val':  # or also for train if you want
+                        with torch.no_grad():
+                            t_base_batch = (output - t_delta).mean().item()   # mean over batch
+                            t_delta_batch = t_delta.mean().item()
+                            t_obs_batch = output.mean().item()
+
+                            batch_size = truth_data.size(0)
+                            running_t_base += t_base_batch * batch_size
+                            running_t_delta += t_delta_batch * batch_size
+                            running_t_obs += t_obs_batch * batch_size
+
                     with torch.no_grad():
                         predictions.append(output.cpu().detach().numpy())
 
@@ -118,7 +132,7 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                             state_dict=copy.deepcopy(model.state_dict()),
                             epoch=epoch,
                             optimizer_state_dict=copy.deepcopy(optimizer.state_dict()),
-                            # scheduler_state_dict=copy.deepcopy(scheduler.state_dict())
+                            scheduler_state_dict=copy.deepcopy(scheduler.state_dict())
                         )
                         save_model(f"{model_folder}/best_model.pkl", **save_dict)
                         
@@ -126,8 +140,26 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     else:
 
                         print(f"Current MAE {scores['MAE']} more than best MAE {best_mae}")
+                    
+                    if steps > 0:  # avoid div0
+                        avg_t_base = running_t_base / steps
+                        avg_t_delta = running_t_delta / steps
+                        avg_t_obs = running_t_obs / steps
+                        delta_ratio = avg_t_delta / avg_t_obs if avg_t_obs > 0 else 0.0
 
-            # scheduler.step(running_loss['val'])
+                        log_str = (f"{phase.upper()} STATS | "
+                                f"t_base: {avg_t_base:6.2f}s | "
+                                f"t_delta: +{avg_t_delta:5.2f}s "
+                                f"({delta_ratio:+6.1%} of total) | "
+                                f"t_obs: {avg_t_obs:6.2f}s")
+
+                        print(log_str)
+
+                        with open(model_folder + "/time.txt", "a") as f:
+                            f.write(log_str + "\n")
+                            f.write(str(scores) + "\n\n")
+
+            scheduler.step(running_loss['val'])
     finally:
         time_elapsed = time.perf_counter() - since
         print(f"cost {time_elapsed} seconds")
@@ -137,5 +169,5 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                    **{'state_dict': copy.deepcopy(model.state_dict()),
                       'epoch': epoch,
                       'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
-                    #   'scheduler_state_dict': copy.deepcopy(scheduler.state_dict())
+                      'scheduler_state_dict': copy.deepcopy(scheduler.state_dict())
                       })
