@@ -46,7 +46,7 @@ def test_model(model, data_loader, args):
         f.write(time.strftime("%m/%d %H:%M:%S",time.localtime(time.time())))
         f.write(f"{metric}\n\n")
 
-    np.save(os.path.join(args.model_folder, "result.npy"), np.asarray([pre2, inds]))
+    np.save(os.path.join(args.model_folder, "result.npy"), np.asarray([pre2, tar2,inds]))
 
 
 def train_main(args):
