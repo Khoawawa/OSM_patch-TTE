@@ -15,6 +15,7 @@ from utils.metric import calculate_metrics
 from utils.util import to_var
 import time
 
+
 def test_model(model, data_loader, args):
     model.eval()
     predictions = list()
@@ -26,8 +27,8 @@ def test_model(model, data_loader, args):
             inds.append(features['inds'])
         features = to_var(features, args.device)
         truth_data = to_var(truth_data, args.device)
-
-        outputs, _ = model(features, args)
+        with torch.amp.autocast(args.device):
+            outputs, _ = model(features, args)
 
         targets.append(truth_data.cpu().numpy())
         predictions.append(outputs.cpu().detach().numpy())
