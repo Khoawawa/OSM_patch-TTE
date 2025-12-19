@@ -65,7 +65,7 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     
                     targets.append(truth_data.numpy())
                     truth_data_np = truth_data.cpu().numpy()
-                    truth_data_np = np.log(truth_data_np + 1e-8)
+                    # truth_data_np = np.log(truth_data_np + 1e-8)
                     truth_data_norm = args.scaler.transform(truth_data_np)
                     truth_data_norm = to_var(truth_data_norm, args.device)
                     
@@ -90,7 +90,7 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     with torch.no_grad():
                         pred_np = output.cpu().detach().numpy()
                         pred_np = args.scaler.inverse_transform(pred_np)
-                        pred_np = np.exp(pred_np)
+                        # pred_np = np.exp(pred_np)
                         predictions.append(pred_np)
 
                     running_loss[phase] += loss.item() * truth_data.size(0)
