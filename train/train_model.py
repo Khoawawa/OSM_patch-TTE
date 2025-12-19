@@ -64,11 +64,15 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     features = to_var(features, args.device)
                     
                     targets.append(truth_data.numpy())
-                    truth_data = to_var(truth_data, args.device)
+                    truth_data_np = truth_data.cpu().numpy()
+                    truth_data_np = np.log(truth_data_np + 1e-8)
+                    truth_data_norm = args.scaler.transform(truth_data_np)
+                    truth_data_norm = to_var(truth_data_norm, args.device)
+                    
                     with torch.set_grad_enabled(phase == 'train'):
                         with torch.amp.autocast(args.device):
                             output, loss_1 = model(features, args)                        
-                            loss_2 = loss_func(truth=truth_data, predict=output)
+                            loss_2 = loss_func(truth=truth_data_norm, predict=output)
                             loss = create_main_loss(loss_1,loss_2,args)
                         
                         if phase == 'train':    
@@ -84,12 +88,12 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                         + desc
                     )
                     with torch.no_grad():
-                        predictions.append(output.cpu().detach().numpy())
+                        pred_np = output.cpu().detach().numpy()
+                        pred_np = args.scaler.inverse_transform(pred_np)
+                        pred_np = np.exp(pred_np)
+                        predictions.append(pred_np)
 
                     running_loss[phase] += loss.item() * truth_data.size(0)
-                    # if step % 1000 == 0:
-                    #     torch.cuda.empty_cache()
-                    #     gc.collect()
 
                 torch.cuda.empty_cache()
                 gc.collect()
