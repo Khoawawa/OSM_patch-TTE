@@ -293,7 +293,7 @@ def load_test_datadict(args):
     tdata = np.load(os.path.join(args.absPath,args.data_config['data_dir'],'test.npy'), allow_pickle=True)
     test_loader = DataLoader(Datadict(tdata), batch_sampler=BatchSampler(tdata, args.data_config['batch_size']),
                                         collate_fn=lambda x: collate_func(x, args, info_all),
-                                        pin_memory=True)
+                                        pin_memory=True, shuffle=False)
     
     return test_loader, StandardScaler2(mean=args.data_config['time_mean'], std=args.data_config['time_std'])
 def load_datadict(args):
