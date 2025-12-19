@@ -91,7 +91,7 @@
     },
     "Regional_50_0.01_TTE":{
         "r_input_dim": 2048,
-        "r_hidden_dim": 64,
+        "r_hidden_dim": 256,
         "r_output_dim": 128,
         "seq_hidden_dim": 128,
         "seq_layer": 2,
