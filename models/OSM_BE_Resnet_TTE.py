@@ -25,11 +25,16 @@ class MulT_TTE(torch.nn.Module):
         )
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.adanorm = AdaRMSNorm(d_model=seq_hidden_dim, d_context=33)
+        self.pool_attn = nn.Linear(seq_hidden_dim, 1)
         self.mlp = nn.Sequential(
             nn.Linear(seq_hidden_dim, seq_hidden_dim),
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
+
+        nn.init.zeros_(self.pool_attn.weight)
+        nn.init.zeros_(self.pool_attn.bias)
+        
     def attention_pooling(self, decoder, valid_mask):
         # (B,T,seq_hidden_dim)
         scores = self.pool_attn(decoder).squeeze(-1)  # (B,T)
