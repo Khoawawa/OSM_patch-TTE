@@ -2,7 +2,7 @@ import copy
 import time
 from typing import Dict
 import gc
-
+import torch
 import numpy as np
 import torch
 from torch import nn
@@ -59,15 +59,17 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                 tqdm_loader = tqdm(data_loaders[phase],mininterval=3)
                 for step, (features, truth_data) in enumerate(tqdm_loader):
                     steps += truth_data.size(0)
-                    
-                    features = to_var(features, args.device)
-                    
                     targets.append(truth_data.numpy())
+
+                    features = to_var(features, args.device)
                     truth_data = to_var(truth_data, args.device)
+
+                    log_truth = torch.log1p(truth_data)
+
                     with torch.set_grad_enabled(phase == 'train'):
                         with torch.amp.autocast(args.device):
                             output, loss_1 = model(features, args)                        
-                            loss_2 = loss_func(truth=truth_data, predict=output)
+                            loss_2 = loss_func(truth=log_truth, predict=output)
                             loss = create_main_loss(loss_1,loss_2,args)
                         
                         if phase == 'train':    
@@ -83,7 +85,8 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                         + desc
                     )
                     with torch.no_grad():
-                        predictions.append(output.cpu().detach().numpy())
+                        pred_real = torch.expm1(output)
+                        predictions.append(pred_real.cpu().detach().numpy())
 
                     running_loss[phase] += loss.item() * truth_data.size(0)
                     # if step % 1000 == 0:
