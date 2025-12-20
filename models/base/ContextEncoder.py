@@ -47,9 +47,9 @@ class ContextEncoder(nn.Module):
         timerep = self.timeembed(feature[:, 0, 5].long()) # 20
         datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 3 + 10 + 20 = 33
 
-        loss_1, _,_ = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']]) 
-        raw_bert_embeds = self.seg_embedding_learning.bert.embeddings.word_embeddings(inputs['rawlinks']) # (B, T, bert_hidden)
-        timene = self.timene(raw_bert_embeds) + raw_bert_embeds
+        loss_1, bert_hidden_states,_ = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']]) 
+        bert_features = bert_hidden_states
+        timene = self.timene(bert_features) + bert_features
 
         features = torch.cat([feature[..., 1:3], gpsrep,highwayrep, timene], dim=-1) # 2 + 5 + 16 + 33 + bert_hiden_size
         
