@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from transformers import BertConfig, BertForMaskedLM
 from torch.nn.functional import tanh
+from models.base.TimeEncoding import TimeEncoding
 
 class ContextEncoder(nn.Module):
     def __init__(self,
@@ -15,9 +16,9 @@ class ContextEncoder(nn.Module):
         self.gpsembed = nn.Linear(4,16)
         # attribute encoding
         self.distembed = nn.Linear(1, 4)
-        self.weekembed = nn.Embedding(8, 3)
+        self.weekembed = TimeEncoding(3, cycle=7)
         self.dateembed = nn.Embedding(367, 10)
-        self.timeembed = nn.Embedding(1441, 20)
+        self.timeembed = TimeEncoding(20, cycle=1440)
         self.timene_dim = 3 + 10 + 20 + bert_hiden_size
         self.timene = nn.Sequential(
             nn.Linear(self.timene_dim, self.timene_dim),
@@ -33,16 +34,16 @@ class ContextEncoder(nn.Module):
     
     def forward(self, inputs, args):
         feature = inputs['links']
-
+        B, T = feature.shape[:2]
         # print("Lens: ", max(lens))
         highwayrep = self.highwayembed(feature[:, :, 0].long()) # 5
-        weekrep = self.weekembed(feature[:, :, 3].long()) # 3
-        daterep = self.dateembed(feature[:, :, 4].long())  # 10
-        timerep = self.timeembed(feature[:, :, 5].long()) # 20
+        weekrep = self.weekembed(feature[:, 0, 3].long()) # 3
+        daterep = self.dateembed(feature[:, 0, 4].long())  # 10
+        timerep = self.timeembed(feature[:, 0, 5].long()) # 20
         gpsrep = tanh(self.gpsembed(feature[:, :, 6:10].float())) # 16
         datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 3 + 10 + 20 = 33
-
-        loss_1, hidden_states, prediction_scores = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']])
+        datetimerep = datetimerep.unsqueeze(1).expand(B, T, -1) # (B,T,33)
+        loss_1, _,_ = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']])
         # 
         timene_input = torch.cat([self.seg_embedding_learning.bert.embeddings.word_embeddings(inputs['rawlinks']), datetimerep], dim=-1)
         timene = self.timene(timene_input)+timene_input

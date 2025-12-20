@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-class LayerNormCA(torch.nn.Module):
+class RMSNormCA(torch.nn.Module):
     def __init__(self, d_model,d_context, num_heads=8,batch_first=True):
         super().__init__()
         self.ln_q = RMSNorm(d_model)
