@@ -87,7 +87,7 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     with torch.no_grad():
                         pred_real = output.cpu().detach().numpy()
                         if args.log1p:
-                            pred_real = torch.expm1(output)
+                            pred_real = torch.expm1(pred_real)
                         predictions.append(pred_real)
 
                     running_loss[phase] += loss.item() * truth_data.size(0)
