@@ -9,12 +9,7 @@ import torch.nn as nn
 import math
 import copy
 batch_first = False
-# from a abstract view point 
-# there is 2 stream
-# - visual stream
-# - context stream
-# every stream have their own block 
-# then go into mlp to extract the time#
+
 class MulT_TTE(torch.nn.Module):
     def __init__(self,
                  seq_hidden_dim, seq_layer,
@@ -35,11 +30,18 @@ class MulT_TTE(torch.nn.Module):
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
-    
+    def attention_pooling(self, decoder, valid_mask):
+        # (B,T,seq_hidden_dim)
+        scores = self.pool_attn(decoder).squeeze(-1)  # (B,T)
+        neg_inf = torch.tensor(-6e4, dtype=scores.dtype, device=scores.device)
+        scores = scores.masked_fill(valid_mask == 0, neg_inf)
+        attn_weights = F.softmax(scores, dim=-1)
+        pooled = torch.bmm(attn_weights.unsqueeze(1), decoder).squeeze(1)  # (B, seq_hidden_dim)
+        return pooled
     def forward(self, input_, args):
         # visual input
         valid_mask = input_['valid_mask']  # (B,T)
-        representation, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args)
+        representation, loss_1, datetimerep = self.context_encoder(input_, args)
         representation = self.represent(representation) # (B,T,seq_hidden_dim)
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
@@ -47,10 +49,9 @@ class MulT_TTE(torch.nn.Module):
         with torch.amp.autocast(device_type=device_type, enabled=False):
             decoder = self.decoder(hiddens.float(), input_['lens'].long())
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
-        # sum pooling
-        decoder = decoder * valid_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
-        pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
-        pooled_decoder = torch.cat([pooled_decoder, weekrep[:,0], daterep[:,0], timerep[:,0]], dim=-1) # (B,seq_hidden_dim + 33)
+
+        decoder = self.adanorm(decoder, datetimerep)
+        pooled_decoder = self.attention_pooling(decoder, valid_mask)
         output = self.mlp(pooled_decoder) # (B,1)
         return output, loss_1
 

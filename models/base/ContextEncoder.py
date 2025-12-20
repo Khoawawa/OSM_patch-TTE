@@ -42,13 +42,13 @@ class ContextEncoder(nn.Module):
         timerep = self.timeembed(feature[:, 0, 5].long()) # 20
         gpsrep = tanh(self.gpsembed(feature[:, :, 6:10].float())) # 16
         datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 3 + 10 + 20 = 33
-        datetimerep = datetimerep.unsqueeze(1).expand(B, T, -1) # (B,T,33)
+        datetimerep_expand = datetimerep.unsqueeze(1).expand(B, T, -1) # (B,T,33)
         loss_1, _,_ = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']])
         # 
-        timene_input = torch.cat([self.seg_embedding_learning.bert.embeddings.word_embeddings(inputs['rawlinks']), datetimerep], dim=-1)
+        timene_input = torch.cat([self.seg_embedding_learning.bert.embeddings.word_embeddings(inputs['rawlinks']), datetimerep_expand], dim=-1)
         timene = self.timene(timene_input)+timene_input
         features = torch.cat([feature[..., 1:3], gpsrep,highwayrep, timene], dim=-1) # 2 + 5 + 16 + 33 + bert_hiden_size
-        return features, loss_1, (weekrep,daterep,timerep)
+        return features, loss_1, datetimerep
         
 if __name__ == "__main__":
     model = ContextEncoder(8, 512, 0, 4)
