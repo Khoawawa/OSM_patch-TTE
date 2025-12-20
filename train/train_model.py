@@ -63,8 +63,6 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
 
                     features = to_var(features, args.device)
                     truth_np = to_var(truth_data, args.device)
-                    if args.log1p:
-                        truth_np = torch.log1p(truth_np)
 
                     with torch.set_grad_enabled(phase == 'train'):
                         with torch.amp.autocast(args.device):
@@ -86,8 +84,6 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     )
                     with torch.no_grad():
                         pred_real = output.cpu().detach()
-                        if args.log1p:
-                            pred_real = torch.expm1(pred_real)
                         predictions.append(pred_real.numpy())
 
                     running_loss[phase] += loss.item() * truth_data.size(0)
