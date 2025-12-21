@@ -25,25 +25,13 @@ class MulT_TTE(torch.nn.Module):
         self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
-        self.adanorm = AdaRMSNorm(d_model=seq_hidden_dim, d_context=33)
-        # self.pool_attn = nn.Linear(seq_hidden_dim, 1)
+        self.adanorm = AdaRMSNorm(d_model=seq_hidden_dim, d_context=88)
         self.mlp = nn.Sequential(
             nn.Linear(seq_hidden_dim, seq_hidden_dim*2),
-            nn.LeakyReLU(),
+            nn.GELU(),
             nn.Linear(seq_hidden_dim*2, 1)
         )
 
-        # nn.init.zeros_(self.pool_attn.weight)
-        # nn.init.zeros_(self.pool_attn.bias)
-        
-    def attention_pooling(self, decoder, valid_mask):
-        # (B,T,seq_hidden_dim)
-        scores = self.pool_attn(decoder).squeeze(-1)  # (B,T)
-        neg_inf = torch.tensor(-6e4, dtype=scores.dtype, device=scores.device)
-        scores = scores.masked_fill(valid_mask == 0, neg_inf)
-        attn_weights = F.softmax(scores, dim=-1)
-        pooled = torch.bmm(attn_weights.unsqueeze(1), decoder).squeeze(1)  # (B, seq_hidden_dim)
-        return pooled
     def sum_pooling(self, decoder, valid_mask):
         mask = valid_mask.float().unsqueeze(-1)
         masked_outputs = decoder * mask
@@ -56,8 +44,7 @@ class MulT_TTE(torch.nn.Module):
         representation = self.represent(representation) # (B,T,seq_hidden_dim)
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
-        
-        decoder = self.decoder(hiddens.float(), input_['lens'].long())
+        decoder = self.decoder(hiddens, input_['lens'].long())
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
 
         decoder = self.adanorm(decoder, datetimerep)
@@ -103,27 +90,18 @@ def attention(q, k, v, d_k, mask=None, dropout=None):
 class MultiHeadAttention(nn.Module):
     def __init__(self, heads, d_model, dropout=0.1):
         super().__init__()
-        self.h = heads
-        self.d_model = d_model
-        
-        # Standard PyTorch MHA (includes Q, K, V and Output projections)
         self.attn = nn.MultiheadAttention(
-            embed_dim=d_model, 
-            num_heads=heads, 
+            embed_dim=d_model,
+            num_heads=heads,
             dropout=dropout,
-            batch_first=False # Highly recommended for easier shape handling
+            batch_first=False   # because your x is (T,B,D)
         )
 
-    def forward(self, q, k, v, lengths):
-        # Create padding mask: (B, T)
-        # True means "ignore this token"
-        device = lengths.device
-        max_len = q.size(1) # Assumes batch_first=True
-        mask = torch.arange(max_len, device=device).unsqueeze(0) >= lengths.unsqueeze(1)
-        
-        # q, k, v are passed directly; nn.MHA handles the linear projections
-        attn_output, _ = self.attn(q, k, v, key_padding_mask=mask)
-        
+    def forward(self, x, lens):
+        device = lens.device
+        max_len = x.size(0)
+        mask = torch.arange(max_len, device=device)[None, :] >= lens[:, None]
+        attn_output, _ = self.attn(x, x, x, key_padding_mask=mask)
         return attn_output
 
 

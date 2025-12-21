@@ -16,9 +16,9 @@ class ContextEncoder(nn.Module):
         
         self.gpsembed = nn.Linear(4,16)
 
-        self.weekembed = TimeEncoding(3, cycle=7)
-        self.dateembed = nn.Embedding(367, 10)
-        self.timeembed = TimeEncoding(20, cycle=1440)
+        self.weekembed = TimeEncoding(8, cycle=7)
+        self.dateembed = nn.Embedding(367, 16)
+        self.timeembed = TimeEncoding(64, cycle=1440)
         
         self.timene_dim = bert_hiden_size
         self.timene = nn.Sequential(
@@ -42,16 +42,16 @@ class ContextEncoder(nn.Module):
         #gps encoding
         gpsrep = tanh(self.gpsembed(feature[:, :, 6:10].float())) # 16
         # global time encoding
-        weekrep = self.weekembed(feature[:, 0, 3].long()) # 3
-        daterep = self.dateembed(feature[:, 0, 4].long())  # 10
-        timerep = self.timeembed(feature[:, 0, 5].long()) # 20
-        datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 3 + 10 + 20 = 33
+        weekrep = self.weekembed(feature[:, 0, 3].long()) # 8
+        daterep = self.dateembed(feature[:, 0, 4].long())  # 16
+        timerep = self.timeembed(feature[:, 0, 5].long()) # 64
+        datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 8 + 16 + 64 = 88
 
         loss_1, bert_hidden_states,_ = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']]) 
         bert_features = bert_hidden_states
         timene = self.timene(bert_features) + bert_features
 
-        features = torch.cat([feature[..., 1:3], gpsrep,highwayrep, timene], dim=-1) # 2 + 5 + 16 + 33 + bert_hiden_size
+        features = torch.cat([feature[..., 1:3], gpsrep,highwayrep, timene], dim=-1) # 2 + 5 + 16 + bert_hiden_size
         
         return features, loss_1, datetimerep
         
