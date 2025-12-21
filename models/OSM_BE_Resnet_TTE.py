@@ -33,8 +33,8 @@ class MulT_TTE(torch.nn.Module):
             nn.Linear(seq_hidden_dim, 1)
         )
 
-        nn.init.zeros_(self.pool_attn.weight)
-        nn.init.zeros_(self.pool_attn.bias)
+        # nn.init.zeros_(self.pool_attn.weight)
+        # nn.init.zeros_(self.pool_attn.bias)
         
     def attention_pooling(self, decoder, valid_mask):
         # (B,T,seq_hidden_dim)
