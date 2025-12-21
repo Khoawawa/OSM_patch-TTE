@@ -53,40 +53,6 @@ class MulT_TTE(torch.nn.Module):
         output = self.mlp(pooled_decoder) # (B,1)
         return output, loss_1
 
-class Norm(nn.Module):
-    def __init__(self, d_model, eps=1e-6):
-        super().__init__()
-
-        self.size = d_model
-
-        # create two learnable parameters to calibrate normalisation
-        self.alpha = nn.Parameter(torch.ones(self.size))
-        self.bias = nn.Parameter(torch.zeros(self.size))
-
-        self.eps = eps
-
-    def forward(self, x):
-        norm = self.alpha * (x - x.mean(dim=-1, keepdim=True)) \
-               / (x.std(dim=-1, keepdim=True) + self.eps) + self.bias
-        return norm
-
-
-def attention(q, k, v, d_k, mask=None, dropout=None):
-    scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(d_k)
-
-    if mask is not None:
-        mask = mask.unsqueeze(1)
-        scores = scores.masked_fill(mask == 0, -1e9)
-
-    scores = F.softmax(scores, dim=-1)
-
-    if dropout is not None:
-        scores = dropout(scores)
-
-    output = torch.matmul(scores, v)
-    return output
-
-
 class MultiHeadAttention(nn.Module):
     def __init__(self, heads, d_model, dropout=0.1):
         super().__init__()
@@ -125,11 +91,11 @@ class FeedForward(nn.Module):
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, heads=1, dropout=0.1):
         super().__init__()
-        self.norm_1 = nn.LayerNorm(d_model) #
+        # self.norm_1 = nn.LayerNorm(d_model) #
         self.norm_2 = nn.LayerNorm(d_model)
         self.norm_3 = nn.LayerNorm(d_model)
 
-        self.dropout_1 = nn.Dropout(dropout)    #
+        # self.dropout_1 = nn.Dropout(dropout)   #
         self.dropout_2 = nn.Dropout(dropout)
         self.dropout_3 = nn.Dropout(dropout)
 
@@ -140,7 +106,7 @@ class DecoderLayer(nn.Module):
 
     def forward(self, x, len):
         x2 = self.norm_2(x)
-        x = x + self.dropout_2(self.attn_2(x2, x2, x2, len))
+        x = x + self.dropout_2(self.attn_2(x2, len))
         x2 = self.norm_3(x)
         x = x + self.dropout_3(self.ff(x2))
         return x
