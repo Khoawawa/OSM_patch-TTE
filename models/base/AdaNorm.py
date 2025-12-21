@@ -6,6 +6,8 @@ class AdaRMSNorm(nn.Module):
         self.rms_norm = RMSNorm(d_model) # Using the RMSNorm you wrote earlier
         # This projects the temporal context into scale and shift parameters
         self.to_scale_shift = nn.Linear(d_context, d_model * 2)
+        nn.init.zeros_(self.to_scale_shift.bias)
+        nn.init.zeros_(self.to_scale_shift.weight)
 
     def forward(self, x, context):
         """
