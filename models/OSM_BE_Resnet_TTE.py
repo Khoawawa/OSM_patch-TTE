@@ -26,7 +26,7 @@ class MulT_TTE(torch.nn.Module):
         
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.adanorm = AdaRMSNorm(d_model=seq_hidden_dim, d_context=33)
-        self.pool_attn = nn.Linear(seq_hidden_dim, 1)
+        # self.pool_attn = nn.Linear(seq_hidden_dim, 1)
         self.mlp = nn.Sequential(
             nn.Linear(seq_hidden_dim, seq_hidden_dim),
             nn.LeakyReLU(),
@@ -44,6 +44,11 @@ class MulT_TTE(torch.nn.Module):
         attn_weights = F.softmax(scores, dim=-1)
         pooled = torch.bmm(attn_weights.unsqueeze(1), decoder).squeeze(1)  # (B, seq_hidden_dim)
         return pooled
+    def sum_pooling(self, decoder, valid_mask):
+        mask = valid_mask.float().unsqueeze(-1)
+        masked_outputs = decoder * mask
+        pooled = masked_outputs.sum(dim=1)
+        return pooled
     def forward(self, input_, args):
         # visual input
         valid_mask = input_['valid_mask']  # (B,T)
@@ -57,7 +62,8 @@ class MulT_TTE(torch.nn.Module):
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
 
         decoder = self.adanorm(decoder, datetimerep)
-        pooled_decoder = self.attention_pooling(decoder, valid_mask)
+        # pooled_decoder = self.attention_pooling(decoder, valid_mask)
+        pooled_decoder = self.sum_pooling(decoder, valid_mask)
         output = self.mlp(pooled_decoder) # (B,1)
         return output, loss_1
 
