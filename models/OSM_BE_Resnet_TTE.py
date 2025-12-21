@@ -44,7 +44,7 @@ class MulT_TTE(torch.nn.Module):
         representation = self.represent(representation) # (B,T,seq_hidden_dim)
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
-        decoder = self.decoder(hiddens, input_['lens'].long())
+        decoder = self.decoder(hiddens, input_['lens'])
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
 
         decoder = self.adanorm(decoder, datetimerep)
