@@ -48,10 +48,11 @@ class MulT_TTE(torch.nn.Module):
         max_pooled = masked_h.max(dim=1).values
         # weighted sum pooling
         
-        weights = seg_lens.float().unsqueeze(-1) # (B,T)
-
+        seg_lens = seg_lens.float().unsqueeze(-1) # (B,T)
+        weights = seg_lens * mask
         denom = weights.sum(dim=1).clamp(min=1e-6)
         sum_pooled = (h * weights).sum(dim=1) / denom
+        
         return torch.cat([max_pooled, sum_pooled], dim=-1)
     
     def forward(self, input_, args):
