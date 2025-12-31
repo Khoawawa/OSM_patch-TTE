@@ -20,6 +20,11 @@ class ContextEncoder(nn.Module):
         self.dateembed = nn.Embedding(367, 8)
         self.timeembed = TimeEncoding(16, cycle=1440)
         self.datetimerep_size = 4 + 8 + 16 # week + date + time
+        self.timene = nn.Sequential(
+            nn.Linear(self.timene_dim, self.timene_dim),
+            nn.LeakyReLU(),
+            nn.Linear(self.timene_dim, self.timene_dim)
+        )
         self.hidden_size = 2 + 5 + 16 + bert_hiden_size  # link length + highway type + gps + bert hidden size
 
     def seg_embedding(self, x):
@@ -41,8 +46,8 @@ class ContextEncoder(nn.Module):
         datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 8 + 16 + 64 = 88
 
         loss_1, bert_hidden_states,_ = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']]) 
-
-        features = torch.cat([feature[..., 1:3], gpsrep,highwayrep, bert_hidden_states], dim=-1) 
+        bert_representation = self.timene(bert_hidden_states) + bert_hidden_states # (B, T, bert_hidden_size)
+        features = torch.cat([feature[..., 1:3], gpsrep,highwayrep, bert_representation], dim=-1) 
         
         return features, loss_1, datetimerep
         
