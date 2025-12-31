@@ -64,9 +64,9 @@ class MulT_TTE(torch.nn.Module):
         decoder = self.decoder(hiddens, input_['lens'])
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
         # inject temporal context
-        cum_len = input_['links'][...,2]
-        total_len = cum_len[:,-1]
-        progress = cum_len / total_len.unsqueeze(-1)  # (B,T)
+        cum_lens = input_['links'][:,:,2]  # (B,T)
+        progress = (cum_lens / cum_lens[:,-1:].clamp(min=1e-6)).unsqueeze(-1)  # (B,T,1)
+
         cond = torch.cat([datetimerep, progress.unsqueeze(-1)], dim=-1)  # (B,T,89)
         decoder = self.adanorm(decoder, cond)
         # pooling
