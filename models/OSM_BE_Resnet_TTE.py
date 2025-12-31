@@ -12,10 +12,6 @@ batch_first = False
 def assert_finite(t, name):
     if not torch.isfinite(t).all():
         print(f"\n NaN/Inf in {name}")
-        print("shape:", t.shape)
-        print("min:", torch.nanmin(t))
-        print("max:", torch.nanmax(t))
-        print("example values:", t.flatten()[:10])
         raise RuntimeError(name)
 
 class MulT_TTE(torch.nn.Module):
@@ -51,13 +47,14 @@ class MulT_TTE(torch.nn.Module):
         masked_h = h.masked_fill(mask == 0, -1e4)
         max_pooled = masked_h.max(dim=1).values
         # weighted sum pooling
-        masked_h = h * mask
-        weights = seg_lens.float().unsqueeze(-1) # (B,T)
-        masked_weights = weights * mask
-        weighted_masked_h = masked_h * masked_weights
-        sum_pooled = weighted_masked_h.sum(dim=1)
-        total_weight = masked_weights.sum(dim=1).clamp(min=1e-6)
-        sum_pooled = sum_pooled / total_weight
+        # masked_h = h * mask
+        # weights = seg_lens.float().unsqueeze(-1) # (B,T)
+        # masked_weights = weights * mask
+        # weighted_masked_h = masked_h * masked_weights
+        # sum_pooled = weighted_masked_h.sum(dim=1)
+        # total_weight = masked_weights.sum(dim=1).clamp(min=1e-6)
+        # sum_pooled = sum_pooled / total_weight
+        sum_pooled = self.sum_pooling(h, valid_mask)
         return torch.cat([max_pooled, sum_pooled], dim=-1)
     
     def forward(self, input_, args):
