@@ -25,9 +25,9 @@ class MulT_TTE(torch.nn.Module):
         self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
-        self.adanorm = AdaRMSNorm(d_model=seq_hidden_dim, d_context=88)
+        self.adanorm = AdaRMSNorm(d_model=seq_hidden_dim, d_context=self.context_encoder.datetimerep_size + 1)
         self.mlp = nn.Sequential(
-            nn.Linear(seq_hidden_dim, seq_hidden_dim*2),
+            nn.Linear(seq_hidden_dim*2, seq_hidden_dim*2),
             nn.GELU(),
             nn.Linear(seq_hidden_dim*2, 1)
         )
@@ -37,20 +37,43 @@ class MulT_TTE(torch.nn.Module):
         masked_outputs = decoder * mask
         pooled = masked_outputs.sum(dim=1)
         return pooled
+    def max_sum_pooling(self, h : torch.Tensor, valid_mask: torch.Tensor, seg_lens):
+        mask = valid_mask.float().unsqueeze(-1)
+        # bottleneck identifier: max pooling
+        masked_max_h = h * mask + (1 - mask) * float('-inf')
+        max_pooled = masked_max_h.max(dim=1)
+        # weighted sum pooling
+        masked_wsum_h = h * mask
+        weights = seg_lens.float().unsqueeze(-1) # (B,T)
+        masked_weights = weights * mask
+        weighted_masked_wsum_h = masked_wsum_h * masked_weights
+        sum_pooled = weighted_masked_wsum_h.sum(dim=1)
+        
+        return torch.cat([max_pooled.values, sum_pooled], dim=-1)
+    
     def forward(self, input_, args):
         # visual input
         valid_mask = input_['valid_mask']  # (B,T)
+        seg_lens = input_['links'][:,:,1] # (B,T,1)
+        # representation encoding
         representation, loss_1, datetimerep = self.context_encoder(input_, args)
         representation = self.represent(representation) # (B,T,seq_hidden_dim)
         representation = representation if batch_first else representation.transpose(0,1).contiguous() # (T,B,Res + Ctx)
+        # temporal modeling
         hiddens, _ = self.temporal_block(representation, seq_lens = input_['lens'].long())
         decoder = self.decoder(hiddens, input_['lens'])
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
-
-        decoder = self.adanorm(decoder, datetimerep)
-        # pooled_decoder = self.attention_pooling(decoder, valid_mask)
-        pooled_decoder = self.sum_pooling(decoder, valid_mask)
+        # inject temporal context
+        cum_len = input_['links'][...,2]
+        total_len = cum_len[:,-1]
+        progress = cum_len / total_len.unsqueeze(-1)  # (B,T)
+        cond = torch.cat([datetimerep, progress.unsqueeze(-1)], dim=-1)  # (B,T,89)
+        decoder = self.adanorm(decoder, cond)
+        # pooling
+        pooled_decoder = self.max_sum_pooling(decoder, valid_mask, seg_lens) # (B, seq_hidden_dim*2)
+        # final MLP
         output = self.mlp(pooled_decoder) # (B,1)
+        
         return output, loss_1
 
 class MultiHeadAttention(nn.Module):

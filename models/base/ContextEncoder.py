@@ -16,18 +16,11 @@ class ContextEncoder(nn.Module):
         
         self.gpsembed = nn.Linear(4,16)
 
-        self.weekembed = TimeEncoding(8, cycle=7)
-        self.dateembed = nn.Embedding(367, 16)
-        self.timeembed = TimeEncoding(64, cycle=1440)
-        
-        self.timene_dim = bert_hiden_size
-        self.timene = nn.Sequential(
-            nn.Linear(self.timene_dim, self.timene_dim),
-            nn.LeakyReLU(),
-            nn.Linear(self.timene_dim, self.timene_dim)
-        )
-        
-        self.hidden_size = 2 + 5 + 16 + self.timene_dim
+        self.weekembed = TimeEncoding(4, cycle=7)
+        self.dateembed = nn.Embedding(367, 8)
+        self.timeembed = TimeEncoding(16, cycle=1440)
+        self.datetimerep_size = 8 + 16 + 64  # week + date + time
+        self.hidden_size = 2 + 5 + 16 + bert_hiden_size  # link length + highway type + gps + bert hidden size
 
     def seg_embedding(self, x):
         bert_output = self.seg_embedding_learning(input_ids=x[0], encoder_attention_mask=x[1],  labels=x[2], output_hidden_states=True)
@@ -42,16 +35,14 @@ class ContextEncoder(nn.Module):
         #gps encoding
         gpsrep = tanh(self.gpsembed(feature[:, :, 6:10].float())) # 16
         # global time encoding
-        weekrep = self.weekembed(feature[:, 0, 3].long()) # 8
-        daterep = self.dateembed(feature[:, 0, 4].long())  # 16
-        timerep = self.timeembed(feature[:, 0, 5].long()) # 64
+        weekrep = self.weekembed(feature[:, :, 3].long()) # 8
+        daterep = self.dateembed(feature[:, :, 4].long())  # 16
+        timerep = self.timeembed(feature[:, :, 5].long()) # 64
         datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 8 + 16 + 64 = 88
 
         loss_1, bert_hidden_states,_ = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']]) 
-        bert_features = bert_hidden_states
-        timene = self.timene(bert_features) + bert_features
 
-        features = torch.cat([feature[..., 1:3], gpsrep,highwayrep, timene], dim=-1) # 2 + 5 + 16 + bert_hiden_size
+        features = torch.cat([feature[..., 1:3], gpsrep,highwayrep, bert_hidden_states], dim=-1) 
         
         return features, loss_1, datetimerep
         

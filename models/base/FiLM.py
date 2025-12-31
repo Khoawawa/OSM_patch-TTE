@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-
 class FilMAdapter(nn.Module):
     def __init__(self, patch_dim, gps_dim, offset_dim, adapter_hidden_dim=512, activation = "RELU"):
         super().__init__()
