@@ -47,15 +47,15 @@ class MulT_TTE(torch.nn.Module):
         masked_h = h * mask
         max_pooled = masked_h.max(dim=1).values
         # weighted sum pooling
-        masked_h = h * mask
+        # masked_h = h * mask
         
-        weights = seg_lens.float().unsqueeze(-1) # (B,T)
-        masked_weights = weights * mask
-        percentages = masked_weights / masked_weights.sum(dim=1, keepdim=True).clamp(min=1e-6)
+        # weights = seg_lens.float().unsqueeze(-1) # (B,T)
+        # masked_weights = weights * mask
+        # percentages = masked_weights / masked_weights.sum(dim=1, keepdim=True).clamp(min=1e-6)
         
-        weighted_masked_h = masked_h * percentages
-        sum_pooled = weighted_masked_h.sum(dim=1)
-        # sum_pooled = self.sum_pooling(h, valid_mask)
+        # weighted_masked_h = masked_h * percentages
+        # sum_pooled = weighted_masked_h.sum(dim=1)
+        sum_pooled = self.sum_pooling(h, valid_mask)
         return torch.cat([max_pooled, sum_pooled], dim=-1)
     
     def forward(self, input_, args):
