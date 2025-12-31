@@ -53,7 +53,7 @@ class MulT_TTE(torch.nn.Module):
         weights = seg_lens * mask
         denom = weights.sum(dim=1).clamp(min=1e-6)
         sum_pooled = (h * weights).sum(dim=1) / denom
-        
+        assert_finite(sum_pooled, "sum pooled")
         return torch.cat([max_pooled, sum_pooled], dim=-1)
     
     def forward(self, input_, args):
