@@ -68,7 +68,8 @@ class MulT_TTE(torch.nn.Module):
         progress = (cum_lens / cum_lens[:,-1:].clamp(min=1e-6)).unsqueeze(-1)  # (B,T,1)
         print("datetimerep shape: ", datetimerep.shape)
         print("progress shape: ", progress.shape)
-        cond = torch.cat([datetimerep, progress.unsqueeze(-1)], dim=-1)  # (B,T,89)
+        
+        cond = torch.cat([datetimerep, progress], dim=-1)  # (B,T,89)
         decoder = self.adanorm(decoder, cond)
         # pooling
         pooled_decoder = self.max_sum_pooling(decoder, valid_mask, seg_lens) # (B, seq_hidden_dim*2)
