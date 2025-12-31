@@ -31,7 +31,7 @@ class MulT_TTE(torch.nn.Module):
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.adanorm = AdaRMSNorm(d_model=seq_hidden_dim, d_context=self.context_encoder.datetimerep_size + 1)
         self.mlp = nn.Sequential(
-            nn.Linear(seq_hidden_dim, seq_hidden_dim*2),
+            nn.Linear(seq_hidden_dim*2, seq_hidden_dim*2),
             nn.GELU(),
             nn.Linear(seq_hidden_dim*2, 1)
         )
