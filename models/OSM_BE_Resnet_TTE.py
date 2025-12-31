@@ -31,7 +31,7 @@ class MulT_TTE(torch.nn.Module):
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.adanorm = AdaRMSNorm(d_model=seq_hidden_dim, d_context=self.context_encoder.datetimerep_size + 1)
         self.mlp = nn.Sequential(
-            nn.Linear(seq_hidden_dim*2, seq_hidden_dim*2),
+            nn.Linear(seq_hidden_dim, seq_hidden_dim*2),
             nn.GELU(),
             nn.Linear(seq_hidden_dim*2, 1)
         )
@@ -49,13 +49,13 @@ class MulT_TTE(torch.nn.Module):
         assert_finite(max_pooled, "max pooled")
         # weighted sum pooling
         
-        seg_lens = seg_lens.float().unsqueeze(-1) # (B,T)
-        weights = seg_lens * mask
-        denom = weights.sum(dim=1).clamp(min=1e-6)
-        sum_pooled = (h * weights).sum(dim=1) / denom
-        assert_finite(sum_pooled, "sum pooled")
-        return torch.cat([max_pooled, sum_pooled], dim=-1)
-    
+        # seg_lens = seg_lens.float().unsqueeze(-1) # (B,T)
+        # weights = seg_lens * mask
+        # denom = weights.sum(dim=1).clamp(min=1e-6)
+        # sum_pooled = (h * weights).sum(dim=1) / denom
+        # assert_finite(sum_pooled, "sum pooled")
+        # return torch.cat([max_pooled, sum_pooled], dim=-1)
+        return max_pooled
     def forward(self, input_, args):
         # visual input
         valid_mask = input_['valid_mask']  # (B,T)
