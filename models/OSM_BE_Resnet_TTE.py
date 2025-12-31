@@ -66,8 +66,6 @@ class MulT_TTE(torch.nn.Module):
         # inject temporal context
         cum_lens = input_['links'][:,:,2]  # (B,T)
         progress = (cum_lens / cum_lens[:,-1:].clamp(min=1e-6)).unsqueeze(-1)  # (B,T,1)
-        print("datetimerep shape: ", datetimerep.shape)
-        print("progress shape: ", progress.shape)
         
         cond = torch.cat([datetimerep, progress], dim=-1)  # (B,T,89)
         decoder = self.adanorm(decoder, cond)

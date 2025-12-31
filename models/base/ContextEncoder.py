@@ -19,7 +19,7 @@ class ContextEncoder(nn.Module):
         self.weekembed = TimeEncoding(4, cycle=7)
         self.dateembed = nn.Embedding(367, 8)
         self.timeembed = TimeEncoding(16, cycle=1440)
-        self.datetimerep_size = 8 + 16 + 64  # week + date + time
+        self.datetimerep_size = 4 + 8 + 16 # week + date + time
         self.hidden_size = 2 + 5 + 16 + bert_hiden_size  # link length + highway type + gps + bert hidden size
 
     def seg_embedding(self, x):
