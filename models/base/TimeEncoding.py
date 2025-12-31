@@ -10,6 +10,7 @@ class TimeEncoding(nn.Module):
             nn.SiLU(),
             nn.Linear(out_dim, out_dim)
         )
+        
         self.register_buffer('cycle', torch.tensor(cycle, dtype=torch.float32))
 
     def forward(self, minute):

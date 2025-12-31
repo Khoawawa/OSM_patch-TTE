@@ -4,9 +4,8 @@ class AdaRMSNorm(nn.Module):
     def __init__(self, d_model, d_context):
         super().__init__()
         self.rms_norm = RMSNorm(d_model)
-        
+        self.context_norm = nn.LayerNorm(d_context)
         self.to_scale_shift = nn.Linear(d_context, d_model * 2)
-        
         nn.init.zeros_(self.to_scale_shift.bias)
         nn.init.zeros_(self.to_scale_shift.weight)
 
@@ -15,6 +14,7 @@ class AdaRMSNorm(nn.Module):
         x: (B, T, d_model)
         context: (B, T, d_context)
         """
+        context = self.context_norm(context)
         scale_shift = self.to_scale_shift(context) # (B, T, 2*d_model)
         scale, shift = scale_shift.chunk(2, dim=-1)
         
