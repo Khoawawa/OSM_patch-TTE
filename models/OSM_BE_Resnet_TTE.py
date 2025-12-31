@@ -40,16 +40,17 @@ class MulT_TTE(torch.nn.Module):
     def max_sum_pooling(self, h : torch.Tensor, valid_mask: torch.Tensor, seg_lens):
         mask = valid_mask.float().unsqueeze(-1)
         # bottleneck identifier: max pooling
-        masked_max_h = h * mask + (1 - mask) * float('-inf')
-        max_pooled = masked_max_h.max(dim=1)
+        masked_h = h.masked_fill(mask == 0, -1e4)
+        max_pooled = masked_h.max(dim=1).values
         # weighted sum pooling
-        masked_wsum_h = h * mask
+        masked_h = h * mask
         weights = seg_lens.float().unsqueeze(-1) # (B,T)
         masked_weights = weights * mask
-        weighted_masked_wsum_h = masked_wsum_h * masked_weights
-        sum_pooled = weighted_masked_wsum_h.sum(dim=1)
-        
-        return torch.cat([max_pooled.values, sum_pooled], dim=-1)
+        weighted_masked_h = masked_h * masked_weights
+        sum_pooled = weighted_masked_h.sum(dim=1)
+        total_weight = masked_weights.sum(dim=1).clamp(min=1e-6)
+        sum_pooled = sum_pooled / total_weight
+        return torch.cat([max_pooled, sum_pooled], dim=-1)
     
     def forward(self, input_, args):
         # visual input
