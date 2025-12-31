@@ -21,9 +21,9 @@ class ContextEncoder(nn.Module):
         self.timeembed = TimeEncoding(16, cycle=1440)
         self.datetimerep_size = 4 + 8 + 16 # week + date + time
         self.timene = nn.Sequential(
-            nn.Linear(self.timene_dim, self.timene_dim),
+            nn.Linear(bert_hiden_size, bert_hiden_size),
             nn.LeakyReLU(),
-            nn.Linear(self.timene_dim, self.timene_dim)
+            nn.Linear(bert_hiden_size, bert_hiden_size)
         )
         self.hidden_size = 2 + 5 + 16 + bert_hiden_size  # link length + highway type + gps + bert hidden size
 
