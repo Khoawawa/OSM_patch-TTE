@@ -9,6 +9,14 @@ import torch.nn as nn
 import math
 import copy
 batch_first = False
+def assert_finite(t, name):
+    if not torch.isfinite(t).all():
+        print(f"\n NaN/Inf in {name}")
+        print("shape:", t.shape)
+        print("min:", torch.nanmin(t))
+        print("max:", torch.nanmax(t))
+        print("example values:", t.flatten()[:10])
+        raise RuntimeError(name)
 
 class MulT_TTE(torch.nn.Module):
     def __init__(self,
@@ -70,8 +78,10 @@ class MulT_TTE(torch.nn.Module):
         
         cond = torch.cat([datetimerep, progress], dim=-1)  # (B,T,89)
         decoder = self.adanorm(decoder, cond)
+        assert_finite(decoder, "decoder after adanorm")
         # pooling
         pooled_decoder = self.max_sum_pooling(decoder, valid_mask, seg_lens) # (B, seq_hidden_dim*2)
+        assert_finite(pooled_decoder, "pooled_decoder")
         # final MLP
         output = self.mlp(pooled_decoder) # (B,1)
         
