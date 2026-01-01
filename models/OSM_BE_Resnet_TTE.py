@@ -22,7 +22,7 @@ class MulT_TTE(torch.nn.Module):
                  bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
         super().__init__()
         self.context_encoder = ContextEncoder(bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size) # trip specific encoder
-        self.temporal_block = LayerNormGRU(input_dim=self.context_encoder.hidden_size, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
+        self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         self.represent = nn.Sequential(
             nn.Linear(self.context_encoder.hidden_size, seq_hidden_dim),
             nn.LeakyReLU(),
