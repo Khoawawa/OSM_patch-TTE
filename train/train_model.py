@@ -76,7 +76,7 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                             torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), 10.0)
                             scaler.step(optimizer)
                             scaler.update()
-                    desc = f"Recon: {loss_dict['weighted_recon']:.4f} (sigma={loss_dict['sigma_recon']:.2f}) | GNLL: {loss_dict['weighted_gaussian']:.4f} (sigma={loss_dict['sigma_gaussian']:.2f})"
+                    desc = f"Recon: {loss_dict['weighted_mlm']:.4f} (sigma={loss_dict['sigma_mlm']:.2f}) | GNLL: {loss_dict['weighted_reg']:.4f} (sigma={loss_dict['sigma_reg']:.2f})"
                     tqdm_loader.set_description(
                         f'{phase} epoch: {epoch}, {phase} loss: {(running_loss[phase] / steps) :.8f}, '
                         + desc
