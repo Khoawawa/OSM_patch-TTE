@@ -25,6 +25,6 @@ class TimeEncoding(nn.Module):
         if minute.dim() == 1:
             minute = minute.unsqueeze(-1)
 
-        angles = minute * self.freqs * (2 * math.pi) / self.base_cycle
+        angles = minute * self.freqs.unsqueeze(0) * (2 * math.pi) / self.base_cycle
         emb = torch.cat([torch.sin(angles), torch.cos(angles)], dim=-1)
         return self.linear(emb)

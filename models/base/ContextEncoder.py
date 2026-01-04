@@ -16,10 +16,10 @@ class ContextEncoder(nn.Module):
         self.gpsembed = nn.Linear(4,16)
         # attribute encoding
         self.distembed = nn.Linear(1, 4)
-        self.weekembed = TimeEncoding(4, cycle=7)
+        self.weekembed = TimeEncoding(8, cycle=7)
         self.dateembed = nn.Embedding(367, 10)
-        self.timeembed = TimeEncoding(6, cycle=1440)
-        self.time_dim = 4 + 10 + 6
+        self.timeembed = TimeEncoding(16, cycle=1440)
+        self.time_dim = 8 + 10 + 16
         self.timene_dim = self.time_dim + bert_hiden_size
         self.timene = nn.Sequential(
             nn.Linear(self.timene_dim, self.timene_dim),
