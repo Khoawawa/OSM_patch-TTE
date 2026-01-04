@@ -4,6 +4,7 @@ from models.base.ContextEncoder import ContextEncoder
 from models.base.LayerNormGRU import LayerNormGRU
 from models.base.VisualEncoder import FiLm_ResnetEncoder, CA_ResnetEncoder, ViTEncoder, ResnetEncoder
 from models.base.RegionEncoder import RegionEncoder
+from models.base.AdaRMSNorm import AdaRMSNorm
 import torch.nn.functional as F
 import torch.nn as nn
 import math
@@ -28,11 +29,12 @@ class MulT_TTE(torch.nn.Module):
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, seq_hidden_dim)
         )
+        self.adamodulator = AdaRMSNorm(d_model=seq_hidden_dim, time_dim=self.context_encoder.timene_dim)
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.mlp = nn.Sequential(
             nn.Linear(seq_hidden_dim + 33, seq_hidden_dim),
             nn.LeakyReLU(),
-            nn.Linear(seq_hidden_dim, 1)
+            nn.Linear(seq_hidden_dim, 2)
         )
     def forward(self, input_, args):
         # visual input
@@ -50,10 +52,11 @@ class MulT_TTE(torch.nn.Module):
         # sum pooling
         decoder = decoder * valid_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
         pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
-
-        pooled_decoder = torch.cat([pooled_decoder, weekrep[:,0], daterep[:,0], timerep[:,0]], dim=-1) # (B,seq_hidden_dim + 33)
-
-        output = self.mlp(pooled_decoder) # (B,1)
+        # temporal conditioning learning h_t = RMSNorm(h) * γ(time) + β(time) ie ht​∼p(h∣zt​)
+        time_cond = torch.cat([weekrep[:,0], daterep[:,0], timerep[:,0]], dim=-1) # (B,33)
+        time_induced_decoder = self.adamodulator(pooled_decoder, time_cond) # (B,seq_hidden_dim)
+        
+        output = self.mlp(time_induced_decoder) # (B,2) [μ, log_var]
         return output, loss_1
 
 class Norm(nn.Module):
@@ -98,16 +101,10 @@ class MultiHeadAttention(nn.Module):
         self.d_k = d_model // heads
         self.h = heads
 
-        self.q_linear = nn.Linear(d_model, d_model)
-        self.v_linear = nn.Linear(d_model, d_model)
-        self.k_linear = nn.Linear(d_model, d_model)
         self.attn_1 = nn.MultiheadAttention(embed_dim=d_model, dropout=dropout, num_heads=self.h)
 
     def forward(self, q, k, v, len):
         # perform linear operation and split into N heads
-        k = self.k_linear(k)
-        q = self.q_linear(q)
-        v = self.v_linear(v)
         device = len.device
         max_len = torch.max(len).item()
         mask = torch.arange(max_len, device=device).unsqueeze(0) < len.unsqueeze(1)

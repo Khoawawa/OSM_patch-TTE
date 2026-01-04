@@ -23,6 +23,7 @@ def collate_func(data, args, info_all):
     edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
     time = torch.Tensor([d[-1] for d in data])
+    time = torch.log1p(time)
     linkids = [np.asarray(d[1]) for d in data]
     dateinfo = [d[2:5] for d in data]
     inds = [d[0] for d in data]
