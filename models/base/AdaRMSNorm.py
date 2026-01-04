@@ -7,6 +7,8 @@ class AdaRMSNorm(nn.Module):
         super().__init__()
         self.norm = RMSNorm(d_model, eps)
         self.linear = nn.Linear(time_dim, 2 * d_model)
+        torch.nn.init.zeros_(self.linear.weight)
+        torch.nn.init.zeros_(self.linear.bias)
 
     def forward(self, h, time_emb):
         h_norm = self.norm(h)

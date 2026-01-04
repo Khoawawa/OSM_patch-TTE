@@ -2,8 +2,6 @@ import torch
 
 from models.base.ContextEncoder import ContextEncoder
 from models.base.LayerNormGRU import LayerNormGRU
-from models.base.VisualEncoder import FiLm_ResnetEncoder, CA_ResnetEncoder, ViTEncoder, ResnetEncoder
-from models.base.RegionEncoder import RegionEncoder
 from models.base.AdaRMSNorm import AdaRMSNorm
 import torch.nn.functional as F
 import torch.nn as nn
@@ -29,10 +27,10 @@ class MulT_TTE(torch.nn.Module):
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, seq_hidden_dim)
         )
-        self.adamodulator = AdaRMSNorm(d_model=seq_hidden_dim, time_dim=self.context_encoder.timene_dim)
+        self.adamodulator = AdaRMSNorm(d_model=seq_hidden_dim, time_dim=self.context_encoder.time_dim)
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer)
         self.mlp = nn.Sequential(
-            nn.Linear(seq_hidden_dim + 33, seq_hidden_dim),
+            nn.Linear(seq_hidden_dim, seq_hidden_dim),
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 2)
         )
@@ -49,9 +47,10 @@ class MulT_TTE(torch.nn.Module):
         with torch.amp.autocast("cuda", enabled=False):
             decoder = self.decoder(hiddens.float(), input_['lens'].long())
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous() # (B,T,seq_hidden_dim)
-        # sum pooling
-        decoder = decoder * valid_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
-        pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
+        # mean pooling
+        masked = decoder * valid_mask.unsqueeze(-1) # (B,T,seq_hidden_dim)
+
+        pooled_decoder = masked.sum(dim=1) / valid_mask.sum(dim=1, keepdim=True).clamp(min=1.0) # (B,seq_hidden_dim)
         # temporal conditioning learning h_t = RMSNorm(h) * γ(time) + β(time) ie ht​∼p(h∣zt​)
         time_cond = torch.cat([weekrep[:,0], daterep[:,0], timerep[:,0]], dim=-1) # (B,33)
         time_induced_decoder = self.adamodulator(pooled_decoder, time_cond) # (B,seq_hidden_dim)

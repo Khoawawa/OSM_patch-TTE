@@ -62,12 +62,13 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     
                     features = to_var(features, args.device)
                     
-                    targets.append(truth_data.numpy())
-                    truth_data = to_var(truth_data, args.device)
+                    targets.append(torch.expm1(truth_data).numpy()) # convert back to original scale for metric calculation
+
+                    truth_data = to_var(truth_data, args.device) # this is in log1p scale for gaussian modelling
                     with torch.set_grad_enabled(phase == 'train'):
                         with torch.amp.autocast(args.device):
-                            output, loss_1 = model(features, args)                        
-                            loss_2 = loss_func(truth=truth_data, predict=output)
+                            output, loss_1 = model(features, args) # output is (B,2) [mu, log_var]
+                            loss_2 = loss_func(truth=truth_data, predict=output) # gaussian NLL loss
                             loss = create_main_loss(loss_1,loss_2,args)
                         
                         if phase == 'train':    
@@ -82,8 +83,9 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                         f'{phase} epoch: {epoch}, {phase} loss: {(running_loss[phase] / steps) :.8f}, '
                         + desc
                     )
+
                     with torch.no_grad():
-                        predictions.append(output.cpu().detach().numpy())
+                        predictions.append(torch.expm1(output[:,0]).cpu().numpy())
 
                     running_loss[phase] += loss.item() * truth_data.size(0)
                     # if step % 1000 == 0:

@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from models.base.TimeEncoding import TimeEncoding
 from transformers import BertConfig, BertForMaskedLM
 from torch.nn.functional import tanh
 
@@ -15,10 +16,11 @@ class ContextEncoder(nn.Module):
         self.gpsembed = nn.Linear(4,16)
         # attribute encoding
         self.distembed = nn.Linear(1, 4)
-        self.weekembed = nn.Embedding(8, 3)
+        self.weekembed = TimeEncoding(4, cycle=7)
         self.dateembed = nn.Embedding(367, 10)
-        self.timeembed = nn.Embedding(1441, 20)
-        self.timene_dim = 3 + 10 + 20 + bert_hiden_size
+        self.timeembed = TimeEncoding(6, cycle=1440)
+        self.time_dim = 4 + 10 + 6
+        self.timene_dim = self.time_dim + bert_hiden_size
         self.timene = nn.Sequential(
             nn.Linear(self.timene_dim, self.timene_dim),
             nn.LeakyReLU(),

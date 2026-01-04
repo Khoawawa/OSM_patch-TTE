@@ -4,16 +4,13 @@ import pickle
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from sklearn.preprocessing import StandardScaler
 from torch.nn import SmoothL1Loss, MSELoss
 from torch.utils.data import Dataset
 from torch.utils.data.dataloader import DataLoader
 from utils.util import StandardScaler2
-from PIL import Image
-import torchvision.transforms as T
 from models.OSM_BE_Resnet_TTE import MulT_TTE
-from rtree import index
-from scipy.spatial import KDTree
 
 
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}
@@ -263,6 +260,14 @@ def create_loss(args):
             preds = torch.squeeze(preds, 1)
             smoothL1 = SmoothL1Loss(reduction='mean', beta = args.loss_val).forward(preds, labels)
             return smoothL1
+    elif args.loss.lower() == 'nll':
+        def loss(**kwargs):
+            preds = kwargs['predict']
+            labels = kwargs['truth']
+            mu = preds[:, 0]
+            log_var = torch.clamp(preds[:,1], -10.0, 10.0)
+            var = torch.exp(log_var).clamp(min=1e-6)
+            return F.gaussian_nll_loss(mu, labels, var, reduction='mean')
 
     else:
         raise ValueError("Unknown loss function.")
