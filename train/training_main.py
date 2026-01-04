@@ -73,39 +73,31 @@ def train_main(args):
     print(f'model config: {args.model_config}')
     print(f'data config: {args.data_config}')
     print(f'arg: {args}')
-    # print(R_model)
-    # 训练
+
     if args.mode == 'train':
         if os.path.exists(model_folder):
             shutil.rmtree(model_folder, ignore_errors=True)
         os.makedirs(model_folder, exist_ok=True)
 
-        if args.optim == "Adam":
-            optimizer = optim.Adam(model.parameters(), lr=args.lr)
-        elif args.optim == "AdamW":
-            optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-        else:
-            raise NotImplementedError()
-
-        train_model(model=model, data_loaders=data_loaders,
-                    loss_func=loss_func, optimizer=optimizer,
-                    model_folder=model_folder, args=args)
-        
-    elif args.mode == 'resume':
-        if args.optim == "Adam":
-            optimizer = optim.Adam(model.parameters(), lr=args.lr)
-        elif args.optim == "AdamW":
-            optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-        else:
-            raise NotImplementedError()
-        
+    if args.optim == "AdamW":
+        optimizer = optim.AdamW([
+            {'params': [p for n, p in model.named_parameters() 
+                if 'log_sigma' not in n], 'lr': args.lr},
+                {'params': [model.loss_module.log_sigma_mlm, model.loss_module.log_sigma_reg], 
+     'lr': 1e-2}
+        ]
+                                , weight_decay=args.weight_decay)
+    else:
+        raise NotImplementedError()
+    start_epoch = -1
+    if args.mode == 'resume':
         final_model = torch.load(os.path.join(model_folder, 'final_model.pkl'), map_location=args.device)
         start_epoch = final_model['epoch']
         model.load_state_dict(final_model['state_dict'], strict=False)
         optimizer.load_state_dict(final_model['optimizer_state_dict'])
         # args.scheduler_state_dict = final_model['scheduler_state_dict']
-        
-        train_model(model=model, data_loaders=data_loaders,
-                    loss_func=loss_func, optimizer=optimizer,
-                    model_folder=model_folder,start_epoch=start_epoch, args=args)
-    
+
+    train_model(model=model, data_loaders=data_loaders,
+                loss_func=loss_func, optimizer=optimizer,start_epoch=start_epoch,
+                model_folder=model_folder, args=args)
+     
