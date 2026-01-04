@@ -33,9 +33,8 @@ class MulT_TTE(torch.nn.Module):
         self.mlp = nn.Sequential(
             nn.Linear(seq_hidden_dim, seq_hidden_dim),
             nn.LeakyReLU(),
-            nn.Linear(seq_hidden_dim, 2)
+            nn.Linear(seq_hidden_dim, 1)
         )
-        self.loss_module = UncertaintyWeightBalancing()
 
     def forward(self, input_, labels, args):
         # visual input
@@ -59,9 +58,8 @@ class MulT_TTE(torch.nn.Module):
         time_induced_decoder = self.adamodulator(pooled_decoder, time_cond) # (B,seq_hidden_dim)
         
         output = self.mlp(time_induced_decoder) # (B,2) [μ, log_var]
-        total_loss, loss_dict = self.loss_module(loss_1, output, labels)
 
-        return output, total_loss, loss_dict
+        return output, loss_1
 
 class Norm(nn.Module):
     def __init__(self, d_model, eps=1e-6):

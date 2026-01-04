@@ -67,7 +67,9 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     truth_data = to_var(truth_data, args.device) # this is in log1p scale for gaussian modelling
                     with torch.set_grad_enabled(phase == 'train'):
                         with torch.amp.autocast(args.device):
-                            output, loss, loss_dict = model(features, truth_data, args) # output is (B,2) [mu, log_var]
+                            output, loss1 = model(features, truth_data, args) # output is (B,1)
+                            loss2 = loss_func(loss1, output, truth_data)
+                            loss = create_main_loss(loss1,loss2, args)
 
                         if phase == 'train':    
                             optimizer.zero_grad()
@@ -76,9 +78,9 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                             torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), 10.0)
                             scaler.step(optimizer)
                             scaler.update()
-                    desc = f"Recon: {loss_dict['loss_mlm'].item():.4f} (sigma={loss_dict['sigma_mlm'].item():.2f}) | GNLL: {loss_dict['gaussian_nll'].item():.4f} (sigma={loss_dict['sigma_reg'].item():.2f})"
+                    desc = f"loss bert: {loss1.item():.8f} | loss L1: {loss2.item():.8f}"
                     tqdm_loader.set_description(
-                        f'{phase} epoch: {epoch}, {phase} loss: {(running_loss[phase] / steps) :.8f}, '
+                        f'{phase} epoch: {epoch}, {phase} loss: {(running_loss[phase] / steps) :.8f} | '
                         + desc
                     )
 
