@@ -36,7 +36,7 @@ class MulT_TTE(torch.nn.Module):
             nn.Linear(seq_hidden_dim, 1)
         )
 
-    def forward(self, input_, labels, args):
+    def forward(self, input_, args):
         # visual input
         valid_mask = input_['valid_mask']  # (B,T)
 

@@ -67,7 +67,7 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     truth_data = to_var(truth_data, args.device) # this is in log1p scale for gaussian modelling
                     with torch.set_grad_enabled(phase == 'train'):
                         with torch.amp.autocast(args.device):
-                            output, loss1 = model(features, truth_data, args) # output is (B,1)
+                            output, loss1 = model(features, args) # output is (B,1)
                             loss2 = loss_func(output, truth_data)
                             loss = create_main_loss(loss1,loss2, args)
 
