@@ -220,12 +220,8 @@ def create_model(args):
         return MulT_TTE(**model_config)
         
 
-def create_main_loss(loss_bert,loss, args):
-    beta = args.beta
-    bert_weight  = 1 - beta
-        
-    return bert_weight*loss_bert / (loss_bert / loss + 1e-4).detach()\
-            + beta * loss\
+def create_main_loss(loss_bert, loss_reg, args):
+    return args.beta * loss_reg + (1 - args.beta) * loss_bert
 
 def create_loss(args):
     if args.loss == 'rmse':
