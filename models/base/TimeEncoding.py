@@ -22,9 +22,23 @@ class TimeEncoding(nn.Module):
 
     def forward(self, minute):
         minute = minute.float()
-        if minute.dim() == 1:
-            minute = minute.unsqueeze(-1)
 
-        angles = minute * self.freqs.unsqueeze(0) * (2 * math.pi) / self.base_cycle
-        emb = torch.cat([torch.sin(angles), torch.cos(angles)], dim=-1)
-        return self.linear(emb)
+        # Accept (B,) or (B,T)
+        if minute.dim() == 1:
+            minute = minute.unsqueeze(1)  # (B,1)
+
+        # minute: (B,T)
+        # freqs: (F,)
+        angles = (
+            minute.unsqueeze(-1)              # (B,T,1)
+            * self.freqs.view(1, 1, -1)        # (1,1,F)
+            * (2 * math.pi)
+            / self.base_cycle
+        )                                      # (B,T,F)
+
+        emb = torch.cat(
+            [torch.sin(angles), torch.cos(angles)],
+            dim=-1
+        )                                      # (B,T,2F)
+
+        return self.linear(emb) 
