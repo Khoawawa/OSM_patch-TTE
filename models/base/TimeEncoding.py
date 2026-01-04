@@ -3,7 +3,7 @@ import torch.nn as nn
 import math
 
 class TimeEncoding(nn.Module):
-    def __init__(self, out_dim, base_cycle=1440, num_freqs=None):
+    def __init__(self, out_dim, cycle=1440, num_freqs=None):
         super().__init__()
         if num_freqs is None:
             num_freqs = out_dim // 2
