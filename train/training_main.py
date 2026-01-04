@@ -80,13 +80,7 @@ def train_main(args):
         os.makedirs(model_folder, exist_ok=True)
 
     if args.optim == "AdamW":
-        optimizer = optim.AdamW([
-            {'params': [p for n, p in model.named_parameters() 
-                if 'log_sigma' not in n], 'lr': args.lr},
-                {'params': [model.loss_module.log_sigma_mlm, model.loss_module.log_sigma_reg], 
-     'lr': 1e-2}
-        ]
-                                , weight_decay=args.weight_decay)
+        optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     else:
         raise NotImplementedError()
     start_epoch = -1
