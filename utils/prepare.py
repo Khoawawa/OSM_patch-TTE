@@ -260,15 +260,6 @@ def create_loss(args):
             preds = torch.squeeze(preds, 1)
             smoothL1 = SmoothL1Loss(reduction='mean', beta = args.loss_val).forward(preds, labels)
             return smoothL1
-    elif args.loss.lower() == 'nll':
-        def loss(**kwargs):
-            preds = kwargs['predict']
-            labels = kwargs['truth']
-            mu = preds[:, 0]
-            log_var = torch.clamp(preds[:,1], -10.0, 10.0)
-            var = torch.exp(log_var).clamp(min=1e-6)
-            return F.gaussian_nll_loss(mu, labels, var, reduction='mean')
-
     else:
         raise ValueError("Unknown loss function.")
     return loss
