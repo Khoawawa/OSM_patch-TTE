@@ -9,7 +9,7 @@ class TimeEncoding(nn.Module):
             num_freqs = out_dim // 2
         
         self.num_freqs = num_freqs
-        self.base_cycle = float(base_cycle)
+        self.base_cycle = float(cycle)
 
         freqs = torch.arange(1, num_freqs + 1)
         self.register_buffer('freqs', freqs.float())
