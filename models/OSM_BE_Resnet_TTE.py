@@ -3,6 +3,7 @@ import torch
 from models.base.ContextEncoder import ContextEncoder
 from models.base.LayerNormGRU import LayerNormGRU
 from models.base.AdaRMSNorm import AdaRMSNorm
+from models.loss.UncertaintyWeight import UncertaintyWeightBalancing
 import torch.nn.functional as F
 import torch.nn as nn
 import math
@@ -34,7 +35,9 @@ class MulT_TTE(torch.nn.Module):
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 2)
         )
-    def forward(self, input_, args):
+        self.loss_module = UncertaintyWeightBalancing()
+
+    def forward(self, input_, labels, args):
         # visual input
         valid_mask = input_['valid_mask']  # (B,T)
 
@@ -56,7 +59,9 @@ class MulT_TTE(torch.nn.Module):
         time_induced_decoder = self.adamodulator(pooled_decoder, time_cond) # (B,seq_hidden_dim)
         
         output = self.mlp(time_induced_decoder) # (B,2) [μ, log_var]
-        return output, loss_1
+        total_loss, loss_dict = self.loss_module(loss_1, output, labels)
+
+        return output, total_loss, loss_dict
 
 class Norm(nn.Module):
     def __init__(self, d_model, eps=1e-6):
