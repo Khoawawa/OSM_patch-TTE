@@ -259,5 +259,3 @@ def create_loss(args):
     else:
         raise ValueError("Unknown loss function.")
     return loss
-
-
