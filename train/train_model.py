@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from utils.metric import calculate_metrics
-from utils.util import save_model, to_var
+from utils.util import save_model, to_var, print_func
 from utils.prepare import create_main_loss
 def set_requires_grad(module, flag: bool):
     for p in module.parameters():
@@ -100,15 +100,17 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                 
                 # assert predictions[0].shape == targets[0].shape, f'{predictions.shape}, {targets.shape}'
                 
-                scores = calculate_metrics(predictions.reshape(predictions.shape[0], -1),
+                scores, (sampled_preds, sampled_targets) = calculate_metrics(predictions.reshape(predictions.shape[0], -1),
                                            targets.reshape(targets.shape[0], -1), args, plot=epoch % 5 == 0, **kwargs)
+                
                 with open(model_folder+"/output.txt", "a") as f:
                     f.write(f'{phase} epoch: {epoch}, {phase} loss: {running_loss[phase] / steps}\n')
                     f.write(str(scores))
                     f.write('\n')
                     f.write(str(time.time()))
                     f.write("\n\n")
-                print(scores)
+                # print(scores)
+                print_func(scores, sampled_preds, sampled_targets, phase)
                 
                 msg.append(f"{phase} epoch: {epoch}, {phase} loss: {running_loss[phase] / steps}\n {scores}\n")
                 if phase == 'val':

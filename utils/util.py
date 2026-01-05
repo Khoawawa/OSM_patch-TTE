@@ -36,3 +36,10 @@ def to_var(var, device=0):
     if isinstance(var, list):
         var = list(map(lambda x: to_var(x, device), var))
         return var
+
+def print_func(metrics, preds, tgts, phase):
+    print(f"----{phase} metrics----")
+    for key in metrics:
+        print(f"{key}: {metrics[key]}")
+    print(f"Sampled predictions: \n {preds}")
+    print(f"Sampled targets: \n {tgts}")

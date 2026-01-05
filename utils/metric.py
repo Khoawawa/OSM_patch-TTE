@@ -62,8 +62,8 @@ def calculate_metrics(preds, labels, args = None, null_val=0.0, plot=False, inds
 
         preds = preds.reshape([-1,1]).squeeze()
         labels = labels.reshape([-1,1]).squeeze()
-        print(f"preds: {preds[:40000:1905]}")
-        print(f"label: {labels[:40000:1905]}")
+        # print(f"preds: {preds[:40000:1905]}")
+        # print(f"label: {labels[:40000:1905]}")
         mape = np.mean(np.abs(np.divide(np.subtract(preds, labels).astype('float32'), labels + 1e-5)))
         mse = np.mean(np.square(np.subtract(preds, labels)).astype('float32'))
         rmse = np.sqrt(mse)
@@ -79,7 +79,7 @@ def calculate_metrics(preds, labels, args = None, null_val=0.0, plot=False, inds
     except Exception as e:
         print(e)
         pearsonrs = (None,None)
-    return {'MAE': mae, 'MAPE': mape, 'RMSE': rmse, 'PEARR':pearsonrs[0], 'PEARP': pearsonrs[1]}
+    return {'MAE': mae, 'MAPE': mape, 'RMSE': rmse, 'PEARR':pearsonrs[0], 'PEARP': pearsonrs[1]}, (preds[:40000:1905], labels[:40000:1905])
 
 
 def cal_acc(input_score, target): #np.argmax(output[1][0][7].cpu().detach().numpy()),labels[0][7]
