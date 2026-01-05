@@ -221,8 +221,11 @@ def create_model(args):
         
 
 def create_main_loss(loss_bert, loss_reg, args):
-    return args.beta * loss_reg + (1 - args.beta) * loss_bert
-
+    beta = args.beta
+    bert_weight  = 1 - beta
+        
+    return bert_weight*loss_bert / (loss_bert / loss_reg + 1e-4).detach()\
+            + beta * loss_reg
 def create_loss(args):
     if args.loss == 'rmse':
         def loss(**kwargs):
