@@ -183,7 +183,7 @@ def load_datadoct_pre(args):
         edgeinfo = pickle.load(f)
     with open(os.path.join(args.absPath,args.data_config['nodes_dir']), 'rb') as f:
         nodeinfo = pickle.load(f)
-    with open(os.path.join(args.absPath,args.data_config['poi_json']), 'r') as f:
+    with open(os.path.join(args.data_config['poi_json']), 'r') as f:
         pois_data = json.load(f)
     # precomputing global poi density matrix
     T = len(poi_type)
