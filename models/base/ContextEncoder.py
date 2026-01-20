@@ -4,7 +4,7 @@ from transformers import BertConfig, BertForMaskedLM
 
 
 class ContextEncoder(nn.Module):
-    def __init__(self,
+    def __init__(self, seq_hidden_dim,
                  bert_attention_heads, bert_hiden_size, pad_token_id, bert_hidden_layers, vocab_size=27300):
         super().__init__()
         self.bert_config = BertConfig(num_attention_heads = bert_attention_heads, hidden_size = bert_hiden_size, pad_token_id=pad_token_id,
@@ -24,6 +24,11 @@ class ContextEncoder(nn.Module):
             nn.Linear(self.timene_dim, self.timene_dim)
         )
         self.hidden_size = 2 + 5 + 16 + self.timene_dim
+        self.represent = nn.Sequential(
+            nn.Linear(self.hidden_size, seq_hidden_dim),
+            nn.LeakyReLU(),
+            nn.Linear(seq_hidden_dim, seq_hidden_dim)
+        )
 
     def seg_embedding(self, x):
         bert_output = self.seg_embedding_learning(input_ids=x[0], encoder_attention_mask=x[1],  labels=x[2], output_hidden_states=True)
@@ -46,7 +51,8 @@ class ContextEncoder(nn.Module):
         timene_input = torch.cat([self.seg_embedding_learning.bert.embeddings.word_embeddings(inputs['rawlinks']), datetimerep], dim=-1)
         timene = self.timene(timene_input)+timene_input
         features = torch.cat([feature[..., 1:3], gpsrep,highwayrep, timene], dim=-1) # 2 + 5 + 16 + 33 + bert_hiden_size
-        return features, loss_1, (weekrep,daterep,timerep)
+        features = self.represent(features) # (B,T,seq_hidden_dim)
+        return features, loss_1, (weekrep[:,0], daterep[:,0], timerep[:,0])
         
 if __name__ == "__main__":
     model = ContextEncoder(8, 512, 0, 4)

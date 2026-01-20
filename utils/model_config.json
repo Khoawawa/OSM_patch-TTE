@@ -57,5 +57,14 @@
         "bert_attention_heads": 8,
         "bert_hidden_size": 64,
         "bert_hidden_layers":4
+    },
+    "POI_MulT_TTE":{
+        "d_poi":64,
+        "seq_hidden_dim": 128,
+        "seq_layer": 2,
+        "decoder_layer": 3,
+        "bert_attention_heads": 8,
+        "bert_hidden_size": 64,
+        "bert_hidden_layers":4
     }
 }

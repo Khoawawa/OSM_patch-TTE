@@ -11,76 +11,13 @@ from torch.utils.data.dataloader import DataLoader
 from utils.util import StandardScaler2
 from PIL import Image
 import torchvision.transforms as T
-from models.OSM_BE_Resnet_TTE import OSM_BER_TTE
-
+from models.POI_MulT_TTE import POI_MulT_TTE
 
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
-def get_transform():
-    return T.Compose([
-        T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-
-def calc_norm_offset(patch, x, y, img_size):
-    center_x, center_y = patch["center"]["x"], patch["center"]["y"]
-
-    px = (x - center_x) / (img_size // 2)
-    py = (y - center_y) / (img_size // 2)
-    
-    return px, py
-
-
-def get_global_min_bounds(patches_json):
-    """
-    Extract the global minimum x (longitude) and y (latitude)
-    across all patches.
-    """
-    minx = min(p["bbox"]["minx"] for p in patches_json)
-    miny = min(p["bbox"]["miny"] for p in patches_json)
-    return minx, miny
-def build_grid_index(patches_json, patch_size):
-    minx, miny = get_global_min_bounds(patches_json)
-    grid_index = {}
-
-    for patch in patches_json:
-        bbox = patch["bbox"]
-        i = int((bbox["minx"] - minx) / patch_size)
-        j = int((bbox["miny"] - miny) / patch_size)
-        grid_index[(i, j)] =  patch
-    return grid_index
-def gps_to_patch_idx(x, y, minx, miny, patch_size):
-    i = int((x - minx) / patch_size)
-    j = int((y - miny) / patch_size)
-    return (i, j)
-def gps_mapper(gps, grid_index, minx, miny, patch_size):
-    x_s, y_s, _,_ = gps
-    i, j = gps_to_patch_idx(x_s, y_s, minx, miny, patch_size)
-    patch = grid_index.get((i, j))
-    return patch, gps
-def get_unique_patches(patches):
-    unique_patches= []
-    seen = {}
-    link_mapper = {}
-    for i, (patch,_) in enumerate(patches):
-        pid = patch["patch_id"]
-        if pid not in seen:
-            idx = len(unique_patches)
-            seen[pid] = idx
-            unique_patches.append(patch)
-        link_mapper[i] = seen[pid]
-
-    return unique_patches, link_mapper 
-
-def build_tensor_dict(patches_json):
-    tensor_dict = {}
-    for patch_info in patches_json:
-        pid = patch_info["patch_id"]
-        path = patch_info["embedding_path"]
-        tensor_dict[pid] = torch.load(path)
-    return tensor_dict
+poi_type = {'education':0,'business':1,'religious':2,'commercial':3,'transport_hub':4,'event_venue':5,'none':6}
 def collate_func(data, args, info_all):
-    transform,grid_index, edgeinfo, nodeinfo, scaler, scaler2,global_patch_tensor_dict = info_all
+    edgeinfo, nodeinfo, scaler, scaler2, regions, global_density = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = []
@@ -113,42 +50,24 @@ def collate_func(data, args, info_all):
         return infos
 
     con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
-    # patch data
-    patches = [gps_mapper(link[6:10], grid_index, args.data_config['patch']['minx'], args.data_config['patch']['miny'], args.data_config['patch']['patch_size']) for link in con_links]
     
-    unique_patches, link_mapper = get_unique_patches(patches) 
-    patch_data = []
-    # convert to tensor pad image
-
-    for patch in unique_patches:
-        pid = patch['patch_id']
-        patch_data.append(global_patch_tensor_dict[pid])
-
-    patch_data = torch.stack(patch_data, dim=0)  
-    # offset calculate
-    patch_size = args.data_config['patch']['patch_size']
-
-    x_centers_list = [p['center']['x'] for p, _ in patches]
-    y_centers_list = [p['center']['y'] for p, _ in patches]
-    gps_list = [g for _, g in patches]
-
-    x_centers = torch.tensor(x_centers_list, dtype=torch.float32)
-    y_centers = torch.tensor(y_centers_list, dtype=torch.float32)
-    gps_numpy = np.array(gps_list, dtype=np.float32)
-    gps_data = torch.from_numpy(gps_numpy)
-    dx = gps_data[:, 0] - x_centers
-    dy = gps_data[:, 1] - y_centers
-
-    normalized_dx = 2 * dx / patch_size
-    normalized_dy = 2 * dy / patch_size
-
-
-    offset_tensor = torch.stack([normalized_dx, normalized_dy], dim=1) # (L, 2)
-
+    # need to find the 7x7 cells
+    lat, lon = con_links[:, 6], con_links[:, 7] # start lat lon, (n,)
+    cell_size = args.data_config['cell_size']
+    m = args.data_config['m']
+    min_lat, min_lon = args.data_config['min_lat'], args.data_config['min_lon']
+    # find out which cell the segment belong to
+    cell_xs = ((lat - min_lat) // cell_size).astype(np.int64) # n,
+    cell_ys = ((lon - min_lon) // cell_size).astype(np.int64) # n,
+    # (n,m*m,T)
+    poi_matrix = local_poi_extraction(cell_xs, cell_ys, global_density, m)
+    
     mask = np.arange(lens.max()) < lens[:, None]
-
-    patch_ids = torch.tensor([link_mapper[i] for i in range(len(patches))], dtype=torch.long) # (total_link,)
-
+    
+    # reshape poi_matrix to sequence -> (batch, seq_len, m*m, T)
+    poi_matrix_padded = torch.zeros((*mask.shape, m*m, poi_matrix.shape[2]), dtype=torch.float32)
+    poi_matrix_padded[mask] = poi_matrix
+    
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
     con_links[:, 1:3] = scaler.transform(con_links[:, 1:3])
     con_links[:, 6:10] = scaler2.transform(con_links[:, 6:10])
@@ -182,10 +101,8 @@ def collate_func(data, args, info_all):
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
     
     return {'links':torch.from_numpy(padded),
-            'patches': patch_data,
-            'patch_ids': patch_ids,
+            'poi_counts': poi_matrix_padded,
             'valid_mask': mask,
-            'offsets': offset_tensor,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
             'mask_label': torch.LongTensor(mask_label),
@@ -194,6 +111,28 @@ def collate_func(data, args, info_all):
             'encoder_attention_mask': torch.LongTensor(mask_encoder)
             }, time
 
+def local_poi_extraction(cell_xs, cell_ys, global_density, m):
+    # cell_xs, cell_ys: (n,)
+    # global_density: (H+pad, W+pad, T)
+    device = global_density.device
+    pad = m // 2
+    
+    offsets = torch.arange(-pad, pad + 1) # (-2,-1,0,1,2) for m=5
+    delta_xs, delta_ys = torch.meshgrid(offsets, offsets, indexing='ij') # (m,m)
+    
+    delta_xs = delta_xs.reshape(-1) # (m*m,)
+    delta_ys = delta_ys.reshape(-1) # (m*m,)
+
+    center_xs = torch.as_tensor(cell_xs,dtype=torch.long, device=device).unsqueeze(1) + pad # (n,1)
+    center_ys = torch.as_tensor(cell_ys, dtype=torch.long, device=device).unsqueeze(1) + pad # (n,1)
+    
+    rows = center_xs + delta_xs # (n, m*m)
+    cols = center_ys + delta_ys # (n, m*m)
+    
+    poi_matrix = global_density[rows, cols, :] # (n, m*m, T)
+    
+    return poi_matrix
+    
 class BatchSampler:
     def __init__(self, dataset, batch_size):
         self.count = len(dataset)
@@ -234,22 +173,45 @@ class BatchSampler:
 
 def load_datadoct_pre(args):
     global info_all
-    transform, grid_index, edgeinfo, nodeinfo, scaler, scaler2 = None, None, None, None, None, None
     
     abspath = os.path.join(os.path.dirname(__file__), "data_config.json")
     with open(abspath) as file:
         data_config = json.load(file)[args.dataset]
         args.data_config = data_config
-    transform = get_transform()
     
     with open(os.path.join(args.absPath,args.data_config['edges_dir']), 'rb') as f:
         edgeinfo = pickle.load(f)
     with open(os.path.join(args.absPath,args.data_config['nodes_dir']), 'rb') as f:
         nodeinfo = pickle.load(f)
-    with open(os.path.join(args.absPath,args.data_config['patch']['patch_dir'],'patch_metadata.json'), 'r') as f:
-        patch_json = json.load(f)
-    grid_index = build_grid_index(patch_json, args.data_config['patch']['patch_size'])
-    global_patch_tensor_dict = build_tensor_dict(patch_json)
+    with open(os.path.join(args.absPath,args.data_config['poi_json']), 'r') as f:
+        pois_data = json.load(f)
+    # precomputing global poi density matrix
+    T = len(poi_type)
+    H = int((args.data_config['max_lat'] - args.data_config['min_lat']) // args.data_config['cell_size']) + 1
+    W = int((args.data_config['max_lon'] - args.data_config['min_lon']) // args.data_config['cell_size']) + 1
+    global_density = np.zeros((H, W, T), dtype=np.int16)
+    
+    for data in pois_data.values():
+        cx, cy = data['cell_id']
+        if not data['pois']:
+            t_idx = poi_type['none']
+            global_density[cx, cy, t_idx] += 1
+            continue
+        for poi in data['pois']:
+            type_ = poi['type']
+            t_idx = poi_type[type_] if type_ in poi_type.keys() else -1
+            if 0 <= t_idx < T:
+                global_density[cx, cy, t_idx] += 1
+
+    m = args.data_config['m']
+    pad = m // 2
+    global_density_tensor = torch.from_numpy(global_density)
+    padded_density = torch.nn.functional.pad(
+        global_density_tensor.permute(2, 0, 1), # [T, H, W]
+        (pad, pad, pad, pad), 
+        mode='constant', value=0
+    ).permute(1, 2, 0) # Back to [H+pad, W+pad, T]
+    
     if "porto" in args.dataset:
         scaler = StandardScaler()
         scaler.fit([[0, 0]])
@@ -273,7 +235,7 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [transform,grid_index,edgeinfo, nodeinfo, scaler, scaler2, global_patch_tensor_dict]
+    info_all = [edgeinfo, nodeinfo, scaler, scaler2, pois_data, padded_density]
 
 
 class Datadict(Dataset):
@@ -321,9 +283,10 @@ def create_model(args):
     with open(absPath) as file:
         model_config = json.load(file)[args.model]
     args.model_config = model_config
+    model_config['poi_type_size'] = len(poi_type)
     model_config['pad_token_id'] = args.data_config['edges'] + 1
-    if "OSM_BER_TTE" in args.model:
-        return OSM_BER_TTE(**model_config)
+    
+    return POI_MulT_TTE(**model_config)
         
 
 def create_main_loss(loss_bert,loss, args):
@@ -370,5 +333,4 @@ def create_loss(args):
     else:
         raise ValueError("Unknown loss function.")
     return loss
-
 
