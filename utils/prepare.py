@@ -187,8 +187,11 @@ def load_datadoct_pre(args):
         pois_data = json.load(f)
     # precomputing global poi density matrix
     T = len(poi_type)
-    H = int(np.ceil((args.data_config['max_lat'] - args.data_config['min_lat']) / args.data_config['cell_size']))
-    W = int(np.ceil((args.data_config['max_lon'] - args.data_config['min_lon']) / args.data_config['cell_size'])) 
+    max_cx = max(v["cell_id"][0] for v in pois_data.values())
+    max_cy = max(v["cell_id"][1] for v in pois_data.values())
+    
+    H = max_cx + 1
+    W = max_cy + 1
     global_density = np.zeros((H, W, T), dtype=np.int16)
     
     for data in pois_data.values():
