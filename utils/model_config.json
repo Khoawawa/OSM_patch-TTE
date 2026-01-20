@@ -60,6 +60,7 @@
     },
     "POI_MulT_TTE":{
         "d_poi":64,
+        "poi_heads":4,
         "seq_hidden_dim": 128,
         "seq_layer": 2,
         "decoder_layer": 3,
