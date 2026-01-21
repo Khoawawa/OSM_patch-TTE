@@ -52,16 +52,21 @@ def collate_func(data, args, info_all):
     con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
     
     # need to find the 7x7 cells
-    lat, lon = con_links[:, 6], con_links[:, 7] # start lat lon, (n,)
+    lon,lat = con_links[:, 6], con_links[:, 7] # start lat lon, (n,)
     cell_size = args.data_config['cell_size']
     m = args.data_config['m']
     min_lat, min_lon = args.data_config['min_lat'], args.data_config['min_lon']
     # find out which cell the segment belong to
-    cell_xs = np.floor((lat - min_lat) / cell_size).astype(np.int64) # n,
-    cell_ys = np.floor((lon - min_lon) / cell_size).astype(np.int64) # n,
-    # (n,m*m,T)
-    poi_matrix = local_poi_extraction(cell_xs, cell_ys, global_density, m)
+    cell_lons = np.floor((lon - min_lon) / cell_size).astype(np.int64) # n,
+    cell_lats = np.floor((lat - min_lat) / cell_size).astype(np.int64) # n,
     
+    assert cell_lons.min() >= 0
+    assert cell_lats.min() >= 0
+    assert cell_lons.max() < global_density.shape[0]
+    assert cell_lats.max() < global_density.shape[1]
+    # (n,m*m,T)
+    poi_matrix = local_poi_extraction(cell_lons, cell_lats, global_density, m)
+
     mask = np.arange(lens.max()) < lens[:, None]
     
     # reshape poi_matrix to sequence -> (batch, seq_len, m*m, T)
@@ -111,23 +116,23 @@ def collate_func(data, args, info_all):
             'encoder_attention_mask': torch.LongTensor(mask_encoder)
             }, time
 
-def local_poi_extraction(cell_xs, cell_ys, global_density, m):
-    # cell_xs, cell_ys: (n,)
+def local_poi_extraction(cell_lons, cell_lats, global_density, m):
+    # cell_lons, cell_lats: (n,)
     # global_density: (H+pad, W+pad, T)
     device = global_density.device
     pad = m // 2
     
     offsets = torch.arange(-pad, pad + 1) # (-2,-1,0,1,2) for m=5
-    delta_xs, delta_ys = torch.meshgrid(offsets, offsets, indexing='ij') # (m,m)
+    delta_lons, delta_lats = torch.meshgrid(offsets, offsets, indexing='ij') # (m,m)
     
-    delta_xs = delta_xs.reshape(-1) # (m*m,)
-    delta_ys = delta_ys.reshape(-1) # (m*m,)
+    delta_lons = delta_lons.reshape(-1) # (m*m,)
+    delta_lats = delta_lats.reshape(-1) # (m*m,)
 
-    center_xs = torch.as_tensor(cell_xs,dtype=torch.long, device=device).unsqueeze(1) + pad # (n,1)
-    center_ys = torch.as_tensor(cell_ys, dtype=torch.long, device=device).unsqueeze(1) + pad # (n,1)
+    center_lons = torch.as_tensor(cell_lons,dtype=torch.long, device=device).unsqueeze(1) + pad # (n,1)
+    center_lats = torch.as_tensor(cell_lats, dtype=torch.long, device=device).unsqueeze(1) + pad # (n,1)
     
-    rows = center_xs + delta_xs # (n, m*m)
-    cols = center_ys + delta_ys # (n, m*m)
+    rows = center_lons + delta_lons # (n, m*m)
+    cols = center_lats + delta_lats # (n, m*m)
     
     poi_matrix = global_density[rows, cols, :] # (n, m*m, T)
     
@@ -187,24 +192,24 @@ def load_datadoct_pre(args):
         pois_data = json.load(f)
     # precomputing global poi density matrix
     T = len(poi_type)
-    max_cx = max(v["cell_id"][0] for v in pois_data.values())
-    max_cy = max(v["cell_id"][1] for v in pois_data.values())
+    max_clon = max(v["cell_id"][0] for v in pois_data.values())
+    max_clat = max(v["cell_id"][1] for v in pois_data.values())
     
-    H = max_cx + 1
-    W = max_cy + 1
+    H = max_clon + 1
+    W = max_clat + 1
     global_density = np.zeros((H, W, T), dtype=np.int16)
     
     for data in pois_data.values():
-        cx, cy = data['cell_id']
+        clon, clat = data['cell_id']
         if not data['pois']:
             t_idx = poi_type['none']
-            global_density[cx, cy, t_idx] += 1
+            global_density[clon, clat, t_idx] += 1
             continue
         for poi in data['pois']:
             type_ = poi['type']
             t_idx = poi_type[type_] if type_ in poi_type.keys() else -1
             if 0 <= t_idx < T:
-                global_density[cx, cy, t_idx] += 1
+                global_density[clon, clat, t_idx] += 1
 
     m = args.data_config['m']
     pad = m // 2
