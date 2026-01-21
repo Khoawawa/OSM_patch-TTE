@@ -68,10 +68,10 @@ def collate_func(data, args, info_all):
     poi_matrix = local_poi_extraction(cell_lons, cell_lats, global_density, m)
 
     mask = np.arange(lens.max()) < lens[:, None]
-    
+    mask_tensor = torch.from_numpy(mask)
     # reshape poi_matrix to sequence -> (batch, seq_len, m*m, T)
     poi_matrix_padded = torch.zeros((*mask.shape, m*m, poi_matrix.shape[2]), dtype=torch.float32)
-    poi_matrix_padded[mask] = poi_matrix
+    poi_matrix_padded[mask_tensor] = poi_matrix
     
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
     con_links[:, 1:3] = scaler.transform(con_links[:, 1:3])
