@@ -107,7 +107,7 @@ def collate_func(data, args, info_all):
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
     
     return {'links':torch.from_numpy(padded),
-            'poi_matrixa': poi_matrix_padded,
+            'poi_matrix': poi_matrix_padded,
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
