@@ -23,7 +23,6 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
     phases = [
         'train',
         'val',
-        'test'
         ]
     since = time.perf_counter()
     for phase in phases:
