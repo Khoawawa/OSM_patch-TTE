@@ -57,8 +57,8 @@ def collate_func(data, args, info_all):
     m = args.data_config['m']
     min_lat, min_lon = args.data_config['min_lat'], args.data_config['min_lon']
     # find out which cell the segment belong to
-    cell_xs = ((lat - min_lat) // cell_size).astype(np.int64) # n,
-    cell_ys = ((lon - min_lon) // cell_size).astype(np.int64) # n,
+    cell_xs = np.floor((lat - min_lat) / cell_size).astype(np.int64) # n,
+    cell_ys = np.floor((lon - min_lon) / cell_size).astype(np.int64) # n,
     # (n,m*m,T)
     poi_matrix = local_poi_extraction(cell_xs, cell_ys, global_density, m)
     
