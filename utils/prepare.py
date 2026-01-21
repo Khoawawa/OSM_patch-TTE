@@ -66,6 +66,7 @@ def collate_func(data, args, info_all):
     assert cell_lats.max() < global_density.shape[1]
     # (n,m*m,T)
     poi_matrix = local_poi_extraction(cell_lons, cell_lats, global_density, m)
+    poi_matrix = poi_matrix.float()
 
     mask = np.arange(lens.max()) < lens[:, None]
     mask_tensor = torch.from_numpy(mask)
