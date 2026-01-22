@@ -1,18 +1,19 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class PoiEncoder(nn.Module):
     def __init__(self,d_poi,d_segment_feat,num_heads,num_poi_types):
         super().__init__()
         # cell emb, region emb, sinusodial positional encoding, cross attention
         self.poi_type = nn.Embedding(num_poi_types,d_poi)
-        d_kv = d_poi
+        self.poi_proj = nn.Linear(d_poi,d_segment_feat)
         
         self.q_norm = nn.LayerNorm(d_segment_feat)
-        self.k_norm = nn.LayerNorm(d_kv)
-        self.v_norm = nn.LayerNorm(d_kv)
-        self.cross_attention = nn.MultiheadAttention(embed_dim=d_segment_feat,num_heads=num_heads,kdim=d_kv,vdim=d_kv,batch_first=True)
-        
+        self.k_norm = nn.LayerNorm(d_segment_feat)
+        self.v_norm = nn.LayerNorm(d_segment_feat)
+        self.cross_attention = nn.MultiheadAttention(embed_dim=d_segment_feat,num_heads=num_heads,kdim=d_segment_feat,vdim=d_segment_feat,batch_first=True)
+
         self.ffn_norm = nn.LayerNorm(d_segment_feat)
         self.ffn = nn.Sequential(
             nn.Linear(d_segment_feat, 2 * d_segment_feat),
@@ -30,7 +31,7 @@ class PoiEncoder(nn.Module):
         e_cell = torch.matmul(weights, type_embeddings)  # (B,L,m*m,d_poi)
         
         return e_cell  # (B,L,m*m,d_poi)
-    def get_2d_relative_pe(self,m,d_poi,device):
+    def get_2d_relative_pe(self,m,d_model,device):
         coords = torch.arange(m,device=device) - (m // 2)
         
         delta_rows, delta_cols = torch.meshgrid(coords, coords, indexing='ij')
@@ -38,25 +39,27 @@ class PoiEncoder(nn.Module):
         delta_rows = delta_rows.flatten()  # (m*m,)
         delta_cols = delta_cols.flatten()  # (m*m,)
 
-        pe = torch.zeros((m*m, d_poi), device=device)
+        pe = torch.zeros((m*m, d_model), device=device)
         
-        div_term = torch.exp(torch.arange(0, d_poi // 2, 2, device=device) * -(torch.log(torch.tensor(10000.0)) / (d_poi // 2)))
-        pe[:, 0: d_poi // 2:2] = torch.sin(delta_rows.unsqueeze(-1) * div_term)
-        pe[:, 1: d_poi // 2:2] = torch.cos(delta_cols.unsqueeze(-1) * div_term)
-        pe[:, d_poi // 2::2] = torch.sin(delta_cols.unsqueeze(-1) * div_term)
-        pe[:, d_poi // 2 + 1::2] = torch.cos(delta_rows.unsqueeze(-1) * div_term)
+        div_term = torch.exp(torch.arange(0, d_model // 2, 2, device=device) * -(torch.log(torch.tensor(10000.0)) / (d_model // 2)))
+        pe[:, 0: d_model // 2:2] = torch.sin(delta_rows.unsqueeze(-1) * div_term)
+        pe[:, 1: d_model // 2:2] = torch.cos(delta_cols.unsqueeze(-1) * div_term)
+        pe[:, d_model // 2::2] = torch.sin(delta_cols.unsqueeze(-1) * div_term)
+        pe[:, d_model // 2 + 1::2] = torch.cos(delta_rows.unsqueeze(-1) * div_term)
         
-        return pe # (m*m,d_poi)
+        return pe # (m*m,d_model)
     def forward(self,segment_feat, poi_matrix, segment_mask,m):
         # segment_feat: (B,L,d_segment_feat)
         # poi_matrix: (B,L,m*m,T)
         B,L = segment_feat.size(0), segment_feat.size(1)
         c_e = self.encode_cell_embedding(poi_matrix)  # (B,L,m*m,d_poi)
+        c_e_proj = self.poi_proj(c_e)  # (B,L,m*m,d_segment_feat)
+        c_e = F.gelu(c_e_proj) 
         if self.rel_pe is None or self.rel_pe.size(0) != m*m:
-            self.rel_pe = self.get_2d_relative_pe(m, c_e.size(-1), device=c_e.device)  # (m*m,d_poi)
-        c_e = c_e + self.rel_pe  # (B,L,m*m,d_poi)
+            self.rel_pe = self.get_2d_relative_pe(m, c_e.size(-1), device=c_e.device)  # (m*m,d_segment_feat)
+        c_e = c_e + self.rel_pe  # (B,L,m*m,d_segment_feat)
         # cross attention
-        c_e_flatten = c_e.view(-1, m*m, c_e.size(-1))  # (B*L,m*m,d_poi)
+        c_e_flatten = c_e.view(-1, m*m, c_e.size(-1))  # (B*L,m*m,d_segment_feat)
         c_e_k_norm = self.k_norm(c_e_flatten)
         c_e_v_norm = self.v_norm(c_e_flatten)
         
