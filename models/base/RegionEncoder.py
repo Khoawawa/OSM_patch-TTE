@@ -54,10 +54,13 @@ class PoiEncoder(nn.Module):
         # segment_feat: (B,L,d_segment_feat)
         # poi_matrix: (B,L,m*m,T)
         B,L = segment_feat.size(0), segment_feat.size(1)
+        
         c_e = self.encode_cell_embedding(poi_matrix)  # (B,L,m*m,d_poi)
+        
         if self.rel_pe is None or self.rel_pe.size(0) != m*m:
             self.rel_pe = self.get_2d_relative_pe(m, c_e.size(-1), device=c_e.device)
         c_e = c_e + self.pe_scale * self.rel_pe  # (B,L,m*m,d_poi)
+        
         c_e = F.leaky_relu(self.poi_proj(c_e))  # (B,L,m*m,d_segment_feat)
         # cross attention
         c_e_flatten = c_e.view(-1, m*m, c_e.size(-1))  # (B*L,m*m,d_segment_feat)
@@ -70,10 +73,11 @@ class PoiEncoder(nn.Module):
         
         ca_output = ca_output.view(B, L, -1)  # (B,L,d_segment_feat)
         ca_output = ca_output * segment_mask.unsqueeze(-1)  # (B,L,d_segment_feat)
+        # gated fusion
         gate_input = torch.cat([segment_feat, ca_output], dim=-1)  # (B,L,2*d_segment_feat)
         gated = torch.sigmoid(self.gate(gate_input))  # (B,L,d_segment_feat)
         segment_feat = segment_feat + gated * ca_output  # (B,L,d_segment_feat)
-        
         segment_feat = segment_feat * segment_mask.unsqueeze(-1)
+        
         return segment_feat  # (B,L,d_segment_feat)
         
