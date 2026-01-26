@@ -52,7 +52,6 @@ def test_model(model, data_loader, args):
     print(metric)
     with open(f'{args.absPath}/data/result_{args.model}.txt', 'a') as f:
         f.write(time.strftime("%m/%d %H:%M:%S",time.localtime(time.time())))
-        f.write(f"epoch:{args.epochs} lr:{args.lr}\ndataset:{args.dataset} identify:{args.identify}\nloss:{args.loss}\n")
         f.write(f"{args.model_config}\n")
         f.write(f"{args.data_config}\n")
         f.write(f"{metric}\n\n")
