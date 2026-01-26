@@ -83,7 +83,7 @@ def test_main(args):
     print(f'model config: {args.model_config}')
     print(f'data config: {args.data_config}')
     print(f'arg: {args}')
-    final_model = torch.load(os.path.join(model_folder, 'final_model.pkl'), map_location=args.device)
-    model.load_state_dict(final_model['state_dict'], strict=False)
+    best_model = torch.load(os.path.join(model_folder, 'best_model.pkl'), map_location=args.device)
+    model.load_state_dict(best_model['state_dict'], strict=False)
     test_model(model, test_loader, args)    
     
