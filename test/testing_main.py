@@ -22,7 +22,8 @@ def test_model(model, data_loader, args):
     targets = list()
     inds = list()
     tqdm_loader = tqdm(data_loader)
-    for features, truth_data in tqdm_loader:
+    log = dict()
+    for step, (features, truth_data) in enumerate(tqdm_loader):
         if isinstance(features, dict) and 'inds' in features.keys():    
             inds.append(features['inds'])
         features = to_var(features, args.device)
@@ -30,8 +31,11 @@ def test_model(model, data_loader, args):
 
         with torch.no_grad():
             with torch.amp.autocast(args.device):
-                outputs, _ = model(features, args,'test')                        
-
+                outputs, log_batch = model(features, args,is_log=True)                        
+        for k in log_batch.keys():
+            if k not in log:
+                log[k] = []
+            log[k].append(log_batch[k].cpu().numpy())
         targets.append(truth_data.cpu().numpy())
         predictions.append(outputs.cpu().detach().numpy())
 

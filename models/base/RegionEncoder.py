@@ -22,9 +22,14 @@ class PoiEncoder(nn.Module):
         self.pe_scale = nn.Parameter(torch.tensor(0.1))
         self.register_buffer("rel_pe", None, persistent=False)
         
-    def encode_cell_embedding(self,poi_matrix):
+    def encode_cell_embedding(self,poi_matrix, log=None):
         # poi_matrix: (B,L,m*m,T)
         total_pois = torch.sum(poi_matrix, dim=-1, keepdim=True) # (B,L,m*m,1)
+        if log is not None:
+            log['poi_zero_ratio'] = (total_pois == 0).float().mean().item()
+            log['poi_mean'] = total_pois.mean().item()
+            log['poi_max'] = total_pois.max().item()
+
         weights = poi_matrix / total_pois.clamp_min(1.0)  # (B,L,m*m,T)
         type_embeddings = self.poi_type.weight  # (T,d_poi)
         e_cell = torch.matmul(weights, type_embeddings)  # (B,L,m*m,d_poi)
@@ -50,12 +55,14 @@ class PoiEncoder(nn.Module):
         pe[:, d_model // 2 + 1::2] = torch.cos(delta_rows.unsqueeze(-1) * div_term)
         
         return pe # (m*m,d_model)
-    def forward(self,segment_feat, poi_matrix, segment_mask,m):
+    def forward(self,segment_feat, poi_matrix, segment_mask,m, is_log = False):
         # segment_feat: (B,L,d_segment_feat)
         # poi_matrix: (B,L,m*m,T)
+        log = dict() if is_log else None
+
         B,L = segment_feat.size(0), segment_feat.size(1)
         
-        c_e = self.encode_cell_embedding(poi_matrix)  # (B,L,m*m,d_poi)
+        c_e = self.encode_cell_embedding(poi_matrix,log)  # (B,L,m*m,d_poi)
         
         if self.rel_pe is None or self.rel_pe.size(0) != m*m:
             self.rel_pe = self.get_2d_relative_pe(m, c_e.size(-1), device=c_e.device)
@@ -73,11 +80,20 @@ class PoiEncoder(nn.Module):
         
         ca_output = ca_output.view(B, L, -1)  # (B,L,d_segment_feat)
         ca_output = ca_output * segment_mask.unsqueeze(-1)  # (B,L,d_segment_feat)
+        # logging cross attention
+        if is_log:
+            log['seg_norm'] = segment_feat.norm(dim=-1).mean().item()
+            log['ca_norm'] = ca_output.norm(dim=-1).mean().item()
         # gated fusion
         gate_input = torch.cat([segment_feat, ca_output], dim=-1)  # (B,L,2*d_segment_feat)
         gated = torch.sigmoid(self.gate(gate_input))  # (B,L,d_segment_feat)
         segment_feat = segment_feat + gated * ca_output  # (B,L,d_segment_feat)
         segment_feat = segment_feat * segment_mask.unsqueeze(-1)
         
-        return segment_feat  # (B,L,d_segment_feat)
+        if is_log:
+            log["gate_mean"] = gated.mean().item()
+            log["gate_std"]  = gated.std().item()
+            log["gate_sat_low"]  = (gated < 0.05).float().mean().item()
+            log["gate_sat_high"] = (gated > 0.95).float().mean().item()
+        return segment_feat  if not is_log else (segment_feat, log)
         

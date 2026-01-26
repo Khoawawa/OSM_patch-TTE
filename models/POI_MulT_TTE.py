@@ -33,8 +33,8 @@ class POI_MulT_TTE(torch.nn.Module):
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
-        
-    def forward(self, input_, args):
+
+    def forward(self, input_, args, is_log=False):
         segment_mask = input_['valid_mask']
         m = args.data_config['m']
         
@@ -42,7 +42,10 @@ class POI_MulT_TTE(torch.nn.Module):
         ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args) # (B,T,seq_hidden_dim)
         # poi encoding
         poi_matrix = input_['poi_matrix']  # (B,T,m*m,T_p)
-        enhanced_ctx = self.poi_encoder(ctx_output, poi_matrix, segment_mask, m)  # (B,T,seq_hidden_dim)
+        if is_log:
+            enhanced_ctx, log = self.poi_encoder(ctx_output, poi_matrix, segment_mask, m, is_log=is_log)  # (B,T,seq_hidden_dim)
+        else:
+            enhanced_ctx = self.poi_encoder(ctx_output, poi_matrix, segment_mask, m)  # (B,T,seq_hidden_dim)
         # temporal modeling
         enhanced_ctx = enhanced_ctx if batch_first else enhanced_ctx.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(enhanced_ctx, seq_lens = input_['lens'].long())
@@ -56,9 +59,9 @@ class POI_MulT_TTE(torch.nn.Module):
         pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
         pooled_decoder = torch.cat([pooled_decoder, weekrep, daterep, timerep], dim=-1) # (B,seq_hidden_dim + 33)
         output = self.mlp(pooled_decoder)
-        
-        return output, loss_1
-    
+
+        return output, (loss_1 if not is_log else log)
+
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, heads, d_model, dropout=0.1):
