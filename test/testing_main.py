@@ -30,7 +30,7 @@ def test_model(model, data_loader, args):
 
         with torch.no_grad():
             with torch.amp.autocast(args.device):
-                outputs, _ = model(features, args)                        
+                outputs, _ = model(features, args,'test')                        
 
         targets.append(truth_data.cpu().numpy())
         predictions.append(outputs.cpu().detach().numpy())
@@ -59,7 +59,7 @@ def test_main(args):
     if args.model == 'None':
         print('No chosen model')
         sys.exit(0)
-    print(f"{args.mode} {args.model}_{args.identify} on {args.dataset}")
+    print(f"Test {args.model}_{args.identify} on {args.dataset}")
     
     load_datadoct_pre(args)
     test_loader, scaler = load_datadict(args)
