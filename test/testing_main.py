@@ -1,6 +1,7 @@
 import os
 import sys
 import shutil
+import json
 from tqdm import tqdm
 
 import torch
@@ -55,7 +56,13 @@ def test_model(model, data_loader, args):
         f.write(f"{args.model_config}\n")
         f.write(f"{args.data_config}\n")
         f.write(f"{metric}\n\n")
-
+    json_log = {
+        k: np.concatenate(v).astype(float).tolist()
+        for k, v in log.items()
+    }
+    with open(f'{args.absPath}/data/log_{args.model}.json', 'w') as f:
+        json.dump(json_log, f, indent=4)
+        f.write('\n')
     np.save(os.path.join(args.model_folder, "result.npy"), np.asarray([pre2, inds]))
 
 
