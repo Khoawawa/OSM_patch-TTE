@@ -5,12 +5,10 @@ import json
 from tqdm import tqdm
 
 import torch
-from torch import optim
 import numpy as np
 
-from train.train_model import train_model
-from utils.prepare import create_model, create_loss
-from utils.prepare import load_datadict, load_datadoct_pre
+from utils.prepare import create_model
+from utils.prepare import  load_datadoct_pre
 from utils.prepare import load_test_datadict
 from utils.metric import calculate_metrics
 from utils.util import to_var
@@ -73,7 +71,7 @@ def test_main(args):
     print(f"Test {args.model}_{args.identify} on {args.dataset}")
     
     load_datadoct_pre(args)
-    test_loader, scaler = load_datadict(args)
+    test_loader, scaler = load_test_datadict(args)
     args.scaler = scaler
     
     model = create_model(args)
