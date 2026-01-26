@@ -30,9 +30,8 @@ def test_model(model, data_loader, args):
         features = to_var(features, args.device)
         truth_data = to_var(truth_data, args.device)
 
-        with torch.no_grad():
-            with torch.amp.autocast(args.device):
-                outputs, log_batch = model(features, args,is_log=True)                        
+        with torch.amp.autocast(args.device):
+            outputs, log_batch = model(features, args,is_log=True)                        
         for k in log_batch.keys():
             if k not in log:
                 log[k] = []
