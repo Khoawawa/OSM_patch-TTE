@@ -33,7 +33,10 @@ def test_model(model, data_loader, args):
         for k in log_batch.keys():
             if k not in log:
                 log[k] = []
-            log[k].append(log_batch[k].cpu().numpy())
+            v = log_batch[k]
+            if torch.is_tensor(v):
+                v = v.detach().cpu().numpy()
+            log[k].append(v)
         targets.append(truth_data.cpu().numpy())
         predictions.append(outputs.cpu().detach().numpy())
 
