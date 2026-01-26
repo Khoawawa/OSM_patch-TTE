@@ -79,8 +79,7 @@ def test_main(args):
     model_folder = f'{args.absPath}/data/save_models/{args.model}_{args.identify}_{args.dataset}'
     args.model_folder = model_folder
     model = model.to(args.device)
-    
-    print(f'loss function: {args.loss}')
+
     print(f'model config: {args.model_config}')
     print(f'data config: {args.data_config}')
     print(f'arg: {args}')
