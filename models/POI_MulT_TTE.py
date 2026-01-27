@@ -45,7 +45,7 @@ class POI_MulT_TTE(torch.nn.Module):
         if is_log:
             enhanced_ctx, log = self.poi_encoder(ctx_output, poi_matrix, segment_mask, is_log=is_log)  # (B,T,seq_hidden_dim)
         else:
-            enhanced_ctx = self.poi_encoder(ctx_output, poi_matrix, segment_mask, m)  # (B,T,seq_hidden_dim)
+            enhanced_ctx = self.poi_encoder(ctx_output, poi_matrix, segment_mask, m)[0]  # (B,T,seq_hidden_dim)
         # temporal modeling
         enhanced_ctx = enhanced_ctx if batch_first else enhanced_ctx.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         hiddens, _ = self.temporal_block(enhanced_ctx, seq_lens = input_['lens'].long())
