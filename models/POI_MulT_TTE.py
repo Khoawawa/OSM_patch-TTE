@@ -12,15 +12,15 @@ import copy
 batch_first = False
 
 class POI_MulT_TTE(torch.nn.Module):
-    def __init__(self, d_poi, poi_heads,
+    def __init__(self,
                  seq_hidden_dim, seq_layer,
                  decoder_layer,
-                 bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,poi_type_size,vocab_size=27300):
+                 bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,poi_type_size,m,vocab_size=27300):
         super().__init__()
         # context encoder -> poi encoder -> temporal encoder -> decoder -> MLP
         self.context_encoder = ContextEncoder(seq_hidden_dim, bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
         
-        self.poi_encoder = PoiEncoder(d_poi=d_poi, d_segment_feat=seq_hidden_dim, num_heads=poi_heads, num_poi_types=poi_type_size)
+        self.poi_encoder = PoiEncoder(d_segment_feat=seq_hidden_dim, m=m, num_poi_types=poi_type_size)
         
         self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         
@@ -43,7 +43,7 @@ class POI_MulT_TTE(torch.nn.Module):
         # poi encoding
         poi_matrix = input_['poi_matrix']  # (B,T,m*m,T_p)
         if is_log:
-            enhanced_ctx, log = self.poi_encoder(ctx_output, poi_matrix, segment_mask, m, is_log=is_log)  # (B,T,seq_hidden_dim)
+            enhanced_ctx, log = self.poi_encoder(ctx_output, poi_matrix, segment_mask, is_log=is_log)  # (B,T,seq_hidden_dim)
         else:
             enhanced_ctx = self.poi_encoder(ctx_output, poi_matrix, segment_mask, m)  # (B,T,seq_hidden_dim)
         # temporal modeling

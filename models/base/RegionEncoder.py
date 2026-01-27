@@ -3,92 +3,42 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class PoiEncoder(nn.Module):
-    def __init__(self,d_poi,d_segment_feat,num_heads,num_poi_types):
+    def __init__(self,d_segment_feat,m,num_poi_types):
         super().__init__()
         # cell emb, region emb, sinusodial positional encoding, cross attention
-        self.poi_type = nn.Embedding(num_poi_types,d_poi)
-        self.poi_proj = nn.Linear(d_poi,d_segment_feat)
-        
-        self.q_norm = nn.LayerNorm(d_segment_feat)
-        self.cross_attention = nn.MultiheadAttention(embed_dim=d_segment_feat,
-                                                     num_heads=num_heads,
-                                                     kdim=d_segment_feat,
-                                                     vdim=d_segment_feat,
-                                                     dropout=0.1,
-                                                     batch_first=True
-                                                     )
-        
-        self.gate = nn.Linear(2*d_segment_feat,d_segment_feat)
-        self.pe_scale = nn.Parameter(torch.tensor(0.1))
-        self.register_buffer("rel_pe", None, persistent=False)
-        
-    def encode_cell_embedding(self,poi_matrix, log=None):
-        # poi_matrix: (B,L,m*m,T)
-        total_pois = torch.sum(poi_matrix, dim=-1, keepdim=True) # (B,L,m*m,1)
-        if log is not None:
-            log['poi_zero_ratio'] = (total_pois == 0).float().mean().item()
-            log['poi_mean'] = total_pois.mean().item()
-            log['poi_max'] = total_pois.max().item()
+        self.m = m
 
-        weights = poi_matrix / total_pois.clamp_min(1.0)  # (B,L,m*m,T)
-        type_embeddings = self.poi_type.weight  # (T,d_poi)
-        e_cell = torch.matmul(weights, type_embeddings)  # (B,L,m*m,d_poi)
-        
-        log_count = torch.log1p(total_pois)  # (B,L,m*m,1)
+        self.cnn = nn.Sequential(
+            nn.Conv2d(in_channels=num_poi_types, out_channels=d_segment_feat, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=d_segment_feat, out_channels=d_segment_feat, kernel_size=3, padding=1),
+            nn.ReLU(),
+        )
 
-        e_cell = e_cell * (1.0 + log_count)  # (B,L,m*m,d_poi)
-        return e_cell  # (B,L,m*m,d_poi)
-    def get_2d_relative_pe(self,m,d_model,device):
-        coords = torch.arange(m,device=device) - (m // 2)
-        
-        delta_rows, delta_cols = torch.meshgrid(coords, coords, indexing='ij')
-        
-        delta_rows = delta_rows.flatten()  # (m*m,)
-        delta_cols = delta_cols.flatten()  # (m*m,)
+        self.seg2gate = nn.Linear(d_segment_feat, m*m)
+        self.pool = nn.AdaptiveAvgPool2d((1,1))
+        self.scale = nn.Parameter(torch.ones(1))
 
-        pe = torch.zeros((m*m, d_model), device=device)
-        
-        div_term = torch.exp(torch.arange(0, d_model // 2, 2, device=device) * -(torch.log(torch.tensor(10000.0)) / (d_model // 2)))
-        pe[:, 0: d_model // 2:2] = torch.sin(delta_rows.unsqueeze(-1) * div_term)
-        pe[:, 1: d_model // 2:2] = torch.cos(delta_cols.unsqueeze(-1) * div_term)
-        pe[:, d_model // 2::2] = torch.sin(delta_cols.unsqueeze(-1) * div_term)
-        pe[:, d_model // 2 + 1::2] = torch.cos(delta_rows.unsqueeze(-1) * div_term)
-        
-        return pe # (m*m,d_model)
-    def forward(self,segment_feat, poi_matrix, segment_mask,m, is_log = False):
+    def forward(self,segment_feat, poi_matrix, segment_mask,is_log = False):
         # segment_feat: (B,L,d_segment_feat)
         # poi_matrix: (B,L,m*m,T)
         log = dict() if is_log else None
 
-        B,L = segment_feat.size(0), segment_feat.size(1)
-        
-        c_e = self.encode_cell_embedding(poi_matrix,log)  # (B,L,m*m,d_poi)
-        
-        if self.rel_pe is None or self.rel_pe.size(0) != m*m:
-            self.rel_pe = self.get_2d_relative_pe(m, c_e.size(-1), device=c_e.device)
-        c_e = c_e + self.pe_scale * self.rel_pe  # (B,L,m*m,d_poi)
-        
-        c_e = F.leaky_relu(self.poi_proj(c_e))  # (B,L,m*m,d_segment_feat)
-        # cross attention
-        c_e_flatten = c_e.view(-1, m*m, c_e.size(-1))  # (B*L,m*m,d_segment_feat)
-        
-        segment_feat_flatten = segment_feat.view(-1, segment_feat.size(-1)).unsqueeze(1)  # (B*L,1,d_segment_feat)
-        segment_feat_q_norm = self.q_norm(segment_feat_flatten)
+        B,L,_,T = poi_matrix.shape
 
-        ca_output = self.cross_attention(query=segment_feat_q_norm, key=c_e_flatten, value=c_e_flatten, need_weights=False)[0]  # (B*L,1,d_segment_feat)
-        ca_output = ca_output.squeeze(1)  # (B*L,d_segment_feat)
-        
-        ca_output = ca_output.view(B, L, -1)  # (B,L,d_segment_feat)
-        ca_output = ca_output * segment_mask.unsqueeze(-1)  # (B,L,d_segment_feat)
-        # logging cross attention
-        if is_log:
-            log['seg_norm'] = segment_feat.norm(dim=-1).mean().item()
-            log['ca_norm'] = ca_output.norm(dim=-1).mean().item()
-        # gated fusion
-        gate_input = torch.cat([segment_feat, ca_output], dim=-1)  # (B,L,2*d_segment_feat)
-        gated = torch.sigmoid(self.gate(gate_input))  # (B,L,d_segment_feat)
-        segment_feat = segment_feat + gated * ca_output  # (B,L,d_segment_feat)
-        segment_feat = segment_feat * segment_mask.unsqueeze(-1)
+        poi_flatten = poi_matrix.view(B*L,self.m,self.m,T).permute(0,3,1,2)  # (B*L,T,m,m)
+        poi_feature = self.cnn(poi_flatten)  # (B*L, d_segment_feat, m, m)
+
+        segment_flatten = segment_feat.view(B*L,segment_feat.size(-1))  # (B*L,d_segment_feat)
+        gate = self.seg2gate(segment_flatten).view(B*L,1,self.m,self.m)  # (B*L,1,m,m)
+        gate = torch.sigmoid(gate)  # (B*L,1,m,m)
+
+        gated = poi_feature * gate  # (B*L, d_segment_feat, m, m)
+        poi_vec = self.pool(gated).flatten(1)  # (B*L, d_segment_feat)
+        poi_vec = poi_vec.view(B,L,-1)  # (B,L,d_segment_feat)
+        segment_feat = segment_feat + self.scale * poi_vec  # (B,L,d_segment_feat)
+
+        segment_feat = segment_feat * segment_mask.unsqueeze(-1).float()  # (B,L,d_segment_feat)
         
         if is_log:
             log["gate_mean"] = gated.mean().item()
