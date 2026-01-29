@@ -15,7 +15,7 @@ from models.POI_MulT_TTE import POI_MulT_TTE
 
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
-poi_type = {'education':0,'business':1,'religious':2,'commercial':3,'transport_hub':4,'event_venue':5,'none':6}
+poi_type = {'healthcare':0,'education':1,'business':2,'religious':3,'commercial':4,'transport_hub':5,'event_venue':6,'none':7}
 def collate_func(data, args, info_all):
     edgeinfo, nodeinfo, scaler, scaler2, regions, global_density = info_all
 
@@ -258,7 +258,7 @@ class Datadict(Dataset):
         return len(self.content)
 def load_test_datadict(args):
     tdata = np.load(os.path.join(args.absPath,args.data_config['data_dir'],'test.npy'), allow_pickle=True)
-    test_loader = DataLoader(Datadict(tdata), batch_sampler=BatchSampler(tdata, args.data_config['batch_size']),
+    test_loader = DataLoader(Datadict(tdata), batch_size=args.data_config['batch_size'],
                                         collate_fn=lambda x: collate_func(x, args, info_all),
                                         pin_memory=True, shuffle=False)
     
