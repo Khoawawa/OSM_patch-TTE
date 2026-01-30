@@ -12,7 +12,7 @@ import copy
 batch_first = False
 
 class POI_MulT_TTE(torch.nn.Module):
-    def __init__(self,
+    def __init__(self,d_bottleneck,
                  seq_hidden_dim, seq_layer,
                  decoder_layer,
                  bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,poi_type_size,m,vocab_size=27300):
@@ -20,7 +20,7 @@ class POI_MulT_TTE(torch.nn.Module):
         # context encoder -> poi encoder -> temporal encoder -> decoder -> MLP
         self.context_encoder = ContextEncoder(seq_hidden_dim, bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
         
-        self.poi_encoder = PoiEncoder(d_segment_feat=seq_hidden_dim, m=m, num_poi_types=poi_type_size)
+        self.poi_encoder = PoiEncoder(d_segment_feat=seq_hidden_dim,d_bottleneck=d_bottleneck, m=m, num_poi_types=poi_type_size)
         
         self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         
