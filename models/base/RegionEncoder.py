@@ -24,6 +24,13 @@ class PoiEncoder(nn.Module):
             nn.Dropout(0.1),
             nn.Linear(d_bottleneck, d_segment_feat)
         )
+        
+        xs = torch.linspace(-1, 1, m)
+        ys = torch.linspace(-1, 1, m)
+        yy, xx = torch.meshgrid(ys, xs, indexing="ij")
+        coord = torch.stack([xx, yy], dim=0)  # (2, m, m)
+        self.register_buffer("coord_grid", coord, persistent=False)  # (2, m, m)
+        
     def forward(self,segment_feat, poi_matrix, segment_mask,is_log = False):
         # segment_feat: (B,L,d_segment_feat)
         # poi_matrix: (B,L,m*m,T)
@@ -33,7 +40,8 @@ class PoiEncoder(nn.Module):
 
         poi_flatten = poi_matrix.view(B*L,self.m,self.m,T).permute(0,3,1,2)  # (B*L,T,m,m)
         # TODO: add 2 channel for pe
-        
+        coord = self.coord_grid.unsqueeze(0).expand(B*L,-1,-1,-1)  # (B*L,2,m,m)
+        poi_flatten = torch.cat([poi_flatten, coord], dim=1)  # (B*L,T+2,m,m)
         # local feature extraction
         poi_feature = self.cnn(poi_flatten)  # (B*L, d_segment_feat, m, m)
         # attention pooling
