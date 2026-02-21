@@ -51,29 +51,7 @@ def collate_func(data, args, info_all):
 
     con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
     
-    # need to find the 7x7 cells
-    lon,lat = con_links[:, 6], con_links[:, 7] # start lat lon, (n,)
-    cell_size = args.data_config['cell_size']
-    m = args.data_config['m']
-    min_lat, min_lon = args.data_config['min_lat'], args.data_config['min_lon']
-    # find out which cell the segment belong to
-    cell_lons = np.floor((lon - min_lon) / cell_size).astype(np.int64) # n,
-    cell_lats = np.floor((lat - min_lat) / cell_size).astype(np.int64) # n,
-    
-    assert cell_lons.min() >= 0
-    assert cell_lats.min() >= 0
-    assert cell_lons.max() < global_density.shape[0]
-    assert cell_lats.max() < global_density.shape[1]
-    # (n,m*m,T)
-    poi_matrix = local_poi_extraction(cell_lons, cell_lats, global_density, m)
-    poi_matrix = poi_matrix.float()
-
     mask = np.arange(lens.max()) < lens[:, None]
-    mask_tensor = torch.from_numpy(mask)
-    # reshape poi_matrix to sequence -> (batch, seq_len, m*m, T)
-    poi_matrix_padded = torch.zeros((*mask.shape, m*m, poi_matrix.shape[2]), dtype=torch.float32)
-    poi_matrix_padded[mask_tensor] = poi_matrix
-    
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
     con_links[:, 1:3] = scaler.transform(con_links[:, 1:3])
     con_links[:, 6:10] = scaler2.transform(con_links[:, 6:10])
@@ -107,7 +85,6 @@ def collate_func(data, args, info_all):
     mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
     
     return {'links':torch.from_numpy(padded),
-            'poi_matrix': poi_matrix_padded,
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
@@ -189,37 +166,6 @@ def load_datadoct_pre(args):
         edgeinfo = pickle.load(f)
     with open(os.path.join(args.absPath,args.data_config['nodes_dir']), 'rb') as f:
         nodeinfo = pickle.load(f)
-    with open(os.path.join(args.data_config['poi_json']), 'r') as f:
-        pois_data = json.load(f)
-    # precomputing global poi density matrix
-    T = len(poi_type)
-    max_clon = max(v["cell_id"][0] for v in pois_data.values())
-    max_clat = max(v["cell_id"][1] for v in pois_data.values())
-    
-    H = max_clon + 1
-    W = max_clat + 1
-    global_density = np.zeros((H, W, T), dtype=np.int16)
-    
-    for data in pois_data.values():
-        clon, clat = data['cell_id']
-        if not data['pois']:
-            t_idx = poi_type['none']
-            global_density[clon, clat, t_idx] += 1
-            continue
-        for poi in data['pois']:
-            type_ = poi['type']
-            t_idx = poi_type[type_] if type_ in poi_type.keys() else -1
-            if 0 <= t_idx < T:
-                global_density[clon, clat, t_idx] += 1
-
-    m = args.data_config['m']
-    pad = m // 2
-    global_density_tensor = torch.from_numpy(global_density)
-    padded_density = torch.nn.functional.pad(
-        global_density_tensor.permute(2, 0, 1), # [T, H, W]
-        (pad, pad, pad, pad), 
-        mode='constant', value=0
-    ).permute(1, 2, 0) # Back to [H+pad, W+pad, T]
     
     if "porto" in args.dataset:
         scaler = StandardScaler()
