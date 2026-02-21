@@ -1,34 +1,36 @@
 import torch
 import torch.nn as nn
 import math
-
 class PositionalEncoding1D(nn.Module):
     def __init__(self, d_model: int = 256):
         super().__init__()
         if d_model % 2 != 0:
             raise ValueError("d_model must be even")
 
-        self.d_model = d_model
         half_dim = d_model // 2
-
         div_term = torch.exp(
             torch.arange(0, half_dim).float()
             * (-math.log(10000.0) / half_dim)
         )
-
         self.register_buffer("div_term", div_term)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if x.dim() == 1:
-            x = x.unsqueeze(1)  # (B, 1)
+        """
+        x: (B, T, 1) or (B, T)
+        return: (B, T, d_model)
+        """
+        if x.dim() == 2:
+            x = x.unsqueeze(-1)  # (B, T, 1)
 
-        x_arg = x * self.div_term          # (B, d_model/2)
+        # broadcast: (B,T,1) * (d_model/2,) → (B,T,d_model/2)
+        x_arg = x * self.div_term
+
         pe = torch.cat(
             [torch.sin(x_arg), torch.cos(x_arg)],
-            dim=1
-        )                                  # (B, d_model)
+            dim=-1
+        )  # (B, T, d_model)
+
         return pe
-    
 class PositionalEncoding2D(nn.Module):
     def __init__(self, d_model: int = 256):
         """

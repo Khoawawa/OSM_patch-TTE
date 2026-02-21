@@ -38,6 +38,7 @@ class ContextEncoder(nn.Module):
         return bert_output["loss"], bert_output["hidden_states"][4], bert_output["logits"]
     
     def forward(self, inputs, args):
+        #
         feature = inputs['links']
 
         # print("Lens: ", max(lens))
