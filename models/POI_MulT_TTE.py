@@ -12,16 +12,13 @@ import copy
 batch_first = False
 
 class POI_MulT_TTE(torch.nn.Module):
-    def __init__(self,d_bottleneck,
+    def __init__(self,
                  seq_hidden_dim, seq_layer,
                  decoder_layer,
-                 bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,poi_type_size,m,vocab_size=27300):
+                 bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
         super().__init__()
         # context encoder -> poi encoder -> temporal encoder -> decoder -> MLP
-        self.context_encoder = ContextEncoder(seq_hidden_dim, bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)
-        
-        self.poi_encoder = PoiEncoder(d_segment_feat=seq_hidden_dim,d_bottleneck=d_bottleneck, m=m, num_poi_types=poi_type_size)
-        
+        self.context_encoder = ContextEncoder(seq_hidden_dim, bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)        
         self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         
         decoder_head = 1
@@ -34,21 +31,15 @@ class POI_MulT_TTE(torch.nn.Module):
             nn.Linear(seq_hidden_dim, 1)
         )
 
-    def forward(self, input_, args, is_log=False):
+    def forward(self, input_, args):
         segment_mask = input_['valid_mask']
         m = args.data_config['m']
         
         # context output
         ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args) # (B,T,seq_hidden_dim)
-        # poi encoding
-        poi_matrix = input_['poi_matrix']  # (B,T,m*m,T_p)
-        if is_log:
-            enhanced_ctx, log = self.poi_encoder(ctx_output, poi_matrix, segment_mask, is_log=is_log)  # (B,T,seq_hidden_dim)
-        else:
-            enhanced_ctx = self.poi_encoder(ctx_output, poi_matrix, segment_mask, m)[0]  # (B,T,seq_hidden_dim)
         # temporal modeling
-        enhanced_ctx = enhanced_ctx if batch_first else enhanced_ctx.transpose(0,1).contiguous() # (T,B,Res + Ctx)
-        hiddens, _ = self.temporal_block(enhanced_ctx, seq_lens = input_['lens'].long())
+        ctx_output = ctx_output if batch_first else ctx_output.transpose(0,1).contiguous() # (T,B,Res + Ctx)
+        hiddens, _ = self.temporal_block(ctx_output, seq_lens = input_['lens'].long())
         # decoder
         device_type = "cuda" if hiddens.is_cuda else "cpu"
         with torch.amp.autocast(device_type=device_type, enabled=False):
@@ -60,7 +51,7 @@ class POI_MulT_TTE(torch.nn.Module):
         pooled_decoder = torch.cat([pooled_decoder, weekrep, daterep, timerep], dim=-1) # (B,seq_hidden_dim + 33)
         output = self.mlp(pooled_decoder)
 
-        return output, (loss_1 if not is_log else log)
+        return output, loss_1
 
 
 class MultiHeadAttention(nn.Module):
