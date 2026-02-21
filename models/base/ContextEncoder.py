@@ -3,7 +3,7 @@ import math
 import torch
 import torch.nn as nn
 from transformers import BertConfig, BertForMaskedLM
-from base.PositionalEncoding import PositionalEncoding1D
+from models.base.PositionalEncoding import PositionalEncoding1D
 
 class ContextEncoder(nn.Module):
     def __init__(self, seq_hidden_dim,
