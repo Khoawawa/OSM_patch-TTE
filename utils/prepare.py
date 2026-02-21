@@ -17,7 +17,7 @@ highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'tr
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
 poi_type = {'healthcare':0,'education':1,'business':2,'religious':3,'commercial':4,'transport_hub':5,'event_venue':6,'none':7}
 def collate_func(data, args, info_all):
-    edgeinfo, nodeinfo, scaler, scaler2, regions, global_density = info_all
+    edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
     time = torch.Tensor([d[-1] for d in data])
     linkids = []
@@ -94,28 +94,6 @@ def collate_func(data, args, info_all):
             'encoder_attention_mask': torch.LongTensor(mask_encoder)
             }, time
 
-def local_poi_extraction(cell_lons, cell_lats, global_density, m):
-    # cell_lons, cell_lats: (n,)
-    # global_density: (H+pad, W+pad, T)
-    device = global_density.device
-    pad = m // 2
-    
-    offsets = torch.arange(-pad, pad + 1) # (-2,-1,0,1,2) for m=5
-    delta_lons, delta_lats = torch.meshgrid(offsets, offsets, indexing='ij') # (m,m)
-    
-    delta_lons = delta_lons.reshape(-1) # (m*m,)
-    delta_lats = delta_lats.reshape(-1) # (m*m,)
-
-    center_lons = torch.as_tensor(cell_lons,dtype=torch.long, device=device).unsqueeze(1) + pad # (n,1)
-    center_lats = torch.as_tensor(cell_lats, dtype=torch.long, device=device).unsqueeze(1) + pad # (n,1)
-    
-    rows = center_lons + delta_lons # (n, m*m)
-    cols = center_lats + delta_lats # (n, m*m)
-    
-    poi_matrix = global_density[rows, cols, :] # (n, m*m, T)
-    
-    return poi_matrix
-    
 class BatchSampler:
     def __init__(self, dataset, batch_size):
         self.count = len(dataset)
@@ -190,7 +168,7 @@ def load_datadoct_pre(args):
     else:
         ValueError("Wrong Dataset Name")
 
-    info_all = [edgeinfo, nodeinfo, scaler, scaler2, pois_data, padded_density]
+    info_all = [edgeinfo, nodeinfo, scaler, scaler2]
 
 
 class Datadict(Dataset):
