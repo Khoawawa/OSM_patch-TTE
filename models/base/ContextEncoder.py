@@ -1,7 +1,9 @@
+import math
+
 import torch
 import torch.nn as nn
 from transformers import BertConfig, BertForMaskedLM
-
+from base.PositionalEncoding import PositionalEncoding1D
 
 class ContextEncoder(nn.Module):
     def __init__(self, seq_hidden_dim,
@@ -13,10 +15,10 @@ class ContextEncoder(nn.Module):
 
         self.highwayembed = nn.Embedding(15, 5, padding_idx=0)
         self.gpsembed = nn.Linear(4,16)
-        self.distembed = nn.Linear(1, 4)
         self.weekembed = nn.Embedding(8, 3)
-        self.dateembed = nn.Embedding(367, 10)
-        self.timeembed = nn.Embedding(1441, 20)
+        self.dateembed = PositionalEncoding1D(10)
+        self.timeembed = PositionalEncoding1D(20)
+        
         self.timene_dim = 3 + 10 + 20 + bert_hiden_size
         self.timene = nn.Sequential(
             nn.Linear(self.timene_dim, self.timene_dim),
@@ -40,10 +42,16 @@ class ContextEncoder(nn.Module):
 
         # print("Lens: ", max(lens))
         highwayrep = self.highwayembed(feature[:, :, 0].long()) # 5
+        
+        doy = feature[:, :, 4].float() / 365.0 * 2 * math.pi
+        minute = feature[:, :, 5].float() / 1440.0 * 2 * math.pi
+        
         weekrep = self.weekembed(feature[:, :, 3].long()) # 3
-        daterep = self.dateembed(feature[:, :, 4].long())  # 10
-        timerep = self.timeembed(feature[:, :, 5].long()) # 20
+        daterep = self.dateembed(doy)  # 10
+        timerep = self.timeembed(minute) # 20
+        
         gpsrep = self.gpsembed(feature[:, :, 6:10].float()) # 16
+        
         datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 3 + 10 + 20 = 33
 
         loss_1, hidden_states, prediction_scores = self.seg_embedding([inputs['linkindex'], inputs['encoder_attention_mask'], inputs['mask_label']])
