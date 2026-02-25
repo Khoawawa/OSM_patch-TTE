@@ -1,5 +1,5 @@
 import torch
-
+from models.utility.timer import StageTimer
 from models.base.ContextEncoder import ContextEncoder
 from models.base.LayerNormGRU import LayerNormGRU
 from models.base.RegionEncoder import PoiEncoder
@@ -30,26 +30,71 @@ class POI_MulT_TTE(torch.nn.Module):
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
+        self.timer = StageTimer()
+        self.enable_timing = True
 
     def forward(self, input_, args):
         segment_mask = input_['valid_mask']
         m = args.data_config['m']
-        
-        # context output
-        ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args) # (B,T,seq_hidden_dim)
-        # temporal modeling
-        ctx_output = ctx_output if batch_first else ctx_output.transpose(0,1).contiguous() # (T,B,Res + Ctx)
-        hiddens, _ = self.temporal_block(ctx_output, seq_lens = input_['lens'].long())
-        # decoder
+
+        # =====================
+        # Context Encoder
+        # =====================
+        if self.enable_timing:
+            self.timer.begin("ContextEncoder")
+
+        ctx_output, loss_1, (weekrep, daterep, timerep) = \
+            self.context_encoder(input_, args)
+
+        if self.enable_timing:
+            self.timer.end("ContextEncoder")
+
+        # =====================
+        # Temporal Encoder (GRU)
+        # =====================
+        if self.enable_timing:
+            self.timer.begin("TemporalBlock")
+
+        ctx_output = ctx_output if batch_first else ctx_output.transpose(0, 1).contiguous()
+        hiddens, _ = self.temporal_block(
+            ctx_output,
+            seq_lens=input_['lens'].long()
+        )
+
+        if self.enable_timing:
+            self.timer.end("TemporalBlock")
+
+        # =====================
+        # Decoder (Attention stack)
+        # =====================
+        if self.enable_timing:
+            self.timer.begin("Decoder")
+
         device_type = "cuda" if hiddens.is_cuda else "cpu"
         with torch.amp.autocast(device_type=device_type, enabled=False):
             decoder = self.decoder(hiddens.float(), input_['lens'].long())
-        decoder = decoder if batch_first else decoder.transpose(0,1).contiguous()
-        # sum pooling
-        decoder = decoder * segment_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
-        pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
-        pooled_decoder = torch.cat([pooled_decoder, weekrep, daterep, timerep], dim=-1) # (B,seq_hidden_dim + 33)
+
+        decoder = decoder if batch_first else decoder.transpose(0, 1).contiguous()
+
+        if self.enable_timing:
+            self.timer.end("Decoder")
+
+        # =====================
+        # Pooling + MLP
+        # =====================
+        if self.enable_timing:
+            self.timer.begin("Pooling+MLP")
+
+        decoder = decoder * segment_mask.unsqueeze(-1).float()
+        pooled_decoder = decoder.sum(dim=1)
+        pooled_decoder = torch.cat(
+            [pooled_decoder, weekrep, daterep, timerep],
+            dim=-1
+        )
         output = self.mlp(pooled_decoder)
+
+        if self.enable_timing:
+            self.timer.end("Pooling+MLP")
 
         return output, loss_1
 
