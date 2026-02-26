@@ -20,7 +20,12 @@ class POI_MulT_TTE(torch.nn.Module):
         # context encoder -> poi encoder -> temporal encoder -> decoder -> MLP
         self.context_encoder = ContextEncoder(seq_hidden_dim, bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)        
         self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
-        
+        self.cl_proj = nn.Sequential(
+            nn.Linear(seq_hidden_dim, seq_hidden_dim//2),
+            nn.LeakyReLU(),
+            nn.Linear(seq_hidden_dim//2, seq_hidden_dim//4),
+            nn.LayerNorm(seq_hidden_dim//4)
+        )
         decoder_head = 1
         
         self.decoder = Decoder(d_model=seq_hidden_dim, N=decoder_layer, heads=decoder_head)
@@ -131,10 +136,7 @@ class POI_MulT_TTE(torch.nn.Module):
     
     def forward(self, input_, args):
         segment_mask = input_['valid_mask']
-        m = args.data_config['m']
-        mask_rate = args.mask_rate
         seq_lens = input_['lens'].long()
-        
         # context output
         h_ori, _, (weekrep,daterep,timerep) = self.context_encoder(input_, args) # (B,T,seq_hidden_dim)
         # point masking
@@ -143,18 +145,18 @@ class POI_MulT_TTE(torch.nn.Module):
         # concat for GPU
         h = torch.cat([h_ori, h_merged], dim=0) # (2B,T,seq_hidden_dim)
         h = h.transpose(0,1).contiguous() if not batch_first else h.contiguous() # (T,2B,seq_hidden_dim)
-
+        # temporal block
         hiddens, _ = self.temporal_block(h, seq_lens = new_lens)
         #TODO: split hiddens into original and merged
-        h_ori, h_merged = torch.split(hiddens, seq_lens.size(0), dim=1) # (T,B,seq_hidden_dim) each
-        #TODO: pooled and proj then contrasive
-        
+        mask_2view = torch.cat([segment_mask, updated_mask], dim=0) 
+        pooled = hiddens.mean(dim=0) # (2B,seq_hidden_dim)
+        pooled_proj = self.cl_proj(pooled) # (2B,seq_hidden_dim//4)
+        proj_ori, proj_merged = pooled_proj.chunk(2, dim=0) # each (B,seq_hidden_dim//4)
+        # TODO: infoNCE
         # decoder
         device_type = "cuda" if h_ori.is_cuda else "cpu"
-        
         with torch.amp.autocast(device_type=device_type, enabled=False):
             decoder = self.decoder(h_ori.float(), new_lens)
-            
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous()
         # sum pooling
         decoder = decoder * segment_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
