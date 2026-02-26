@@ -45,9 +45,9 @@ class POI_MulT_TTE(torch.nn.Module):
         with torch.amp.autocast(device_type=device_type, enabled=False):
             decoder = self.decoder(hiddens.float(), input_['lens'].long())
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous()
-        # sum pooling
+        # mean pooling
         decoder = decoder * segment_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
-        pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
+        pooled_decoder = decoder.mean(dim=1) # (B,seq_hidden_dim)
         pooled_decoder = torch.cat([pooled_decoder, weekrep, daterep, timerep], dim=-1) # (B,seq_hidden_dim + 33)
         output = self.mlp(pooled_decoder)
 

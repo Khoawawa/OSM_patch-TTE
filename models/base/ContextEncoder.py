@@ -51,7 +51,7 @@ class ContextEncoder(nn.Module):
         daterep = self.dateembed(doy)  # 10
         timerep = self.timeembed(minute) # 20
         
-        gpsrep = self.gpsembed(feature[:, :, 6:10].float()) # 16
+        gpsrep = torch.tanh(self.gpsembed(feature[:, :, 6:10].float())) # 16
         
         datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1) # 3 + 10 + 20 = 33
 
