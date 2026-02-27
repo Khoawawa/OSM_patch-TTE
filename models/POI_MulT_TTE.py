@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 import math
 import copy
-
+from info_nce import InfoNCE, info_nce
 batch_first = False
 
 class POI_MulT_TTE(torch.nn.Module):
@@ -23,8 +23,8 @@ class POI_MulT_TTE(torch.nn.Module):
         self.cl_proj = nn.Sequential(
             nn.Linear(seq_hidden_dim, seq_hidden_dim//2),
             nn.LeakyReLU(),
-            nn.Linear(seq_hidden_dim//2, seq_hidden_dim//4),
-            nn.LayerNorm(seq_hidden_dim//4)
+            nn.Linear(seq_hidden_dim//2, seq_hidden_dim//2),
+            nn.LayerNorm(seq_hidden_dim//2)
         )
         decoder_head = 1
         
@@ -35,6 +35,7 @@ class POI_MulT_TTE(torch.nn.Module):
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
+        self.info_nce_loss = InfoNCE()
     def point_masking(self, x,padded_mask,mask_rate):
         # x: [B, L, D] 
         # padded_mask: [B, L] 
@@ -140,31 +141,44 @@ class POI_MulT_TTE(torch.nn.Module):
         # context output
         h_ori, _, (weekrep,daterep,timerep) = self.context_encoder(input_, args) # (B,T,seq_hidden_dim)
         # point masking
-        h_merged, updated_mask, merged_lens = self.merge_segments(h_ori, segment_mask, merge_rate=args.merge_rate) # (B,T,seq_hidden_dim)
-        new_lens = torch.cat([seq_lens, merged_lens], dim=0)
-        # concat for GPU
-        h = torch.cat([h_ori, h_merged], dim=0) # (2B,T,seq_hidden_dim)
+        if self.training:
+            h_merged, updated_mask, merged_lens = self.merge_segments(h_ori, segment_mask, merge_rate=args.merge_rate) # (B,T,seq_hidden_dim)
+            new_lens = torch.cat([seq_lens, merged_lens], dim=0)
+            # concat for GPU
+            h = torch.cat([h_ori, h_merged], dim=0) # (2B,T,seq_hidden_dim)
+        else:
+            h = h_ori
+            new_lens = seq_lens
         h = h.transpose(0,1).contiguous() if not batch_first else h.contiguous() # (T,2B,seq_hidden_dim)
         # temporal block
         hiddens, _ = self.temporal_block(h, seq_lens = new_lens)
-        #TODO: split hiddens into original and merged
-        mask_2view = torch.cat([segment_mask, updated_mask], dim=0) 
-        pooled = hiddens.mean(dim=0) # (2B,seq_hidden_dim)
-        pooled_proj = self.cl_proj(pooled) # (2B,seq_hidden_dim//4)
-        proj_ori, proj_merged = pooled_proj.chunk(2, dim=0) # each (B,seq_hidden_dim//4)
-        # TODO: infoNCE
-        # decoder
-        device_type = "cuda" if h_ori.is_cuda else "cpu"
+        if self.training:
+            mask_2view = torch.cat([segment_mask, updated_mask], dim=0) 
+            mask_2view = mask_2view.transpose(0,1).contiguous() if not batch_first else mask_2view.contiguous() # (T,2B)
+            mask_2view = mask_2view.unsqueeze(-1) # (T,2B,1)
+            pooled = (hiddens * mask_2view.float()).sum(dim=0) / new_lens.unsqueeze(-1).float() # (2B,seq_hidden_dim)
+            pooled_proj = self.cl_proj(pooled) # (2B,seq_hidden_dim//4)
+            proj = F.normalize(pooled_proj, dim=-1) # (2B,seq_hidden_dim//4)
+            proj_ori, proj_merged = proj.chunk(2, dim=0) # each (B,seq_hidden_dim//4)
+            # TODO: infoNCE
+            loss_cl = self.info_nce_loss(proj_ori, proj_merged) 
+            hiddens_ori, _ = hiddens.chunk(2, dim=1)  # (T, B, D)
+        else:
+            loss_cl = None
+            hiddens_ori = hiddens
+            
+        device_type = "cuda" if hiddens_ori.is_cuda else "cpu"
         with torch.amp.autocast(device_type=device_type, enabled=False):
-            decoder = self.decoder(h_ori.float(), new_lens)
+            decoder = self.decoder(hiddens_ori.float(), seq_lens)
         decoder = decoder if batch_first else decoder.transpose(0,1).contiguous()
-        # sum pooling
+        # mean pooling
         decoder = decoder * segment_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
         pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
+        pooled_decoder = pooled_decoder / seq_lens.unsqueeze(-1).float() # (B,seq_hidden_dim)
         pooled_decoder = torch.cat([pooled_decoder, weekrep, daterep, timerep], dim=-1) # (B,seq_hidden_dim + 33)
         output = self.mlp(pooled_decoder)
 
-        return output
+        return output, loss_cl
 
 
 class MultiHeadAttention(nn.Module):
