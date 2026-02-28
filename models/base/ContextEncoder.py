@@ -3,7 +3,7 @@ import math
 import torch
 import torch.nn as nn
 from transformers import BertConfig, BertForMaskedLM
-from models.base.PositionalEncoding import PositionalEncoding1D
+from models.base.PositionalEncoding import PositionalEncoding1D, CyclicalTimeEncoding
 
 class ContextEncoder(nn.Module):
     def __init__(self, seq_hidden_dim,
@@ -16,8 +16,8 @@ class ContextEncoder(nn.Module):
         self.highwayembed = nn.Embedding(15, 5, padding_idx=0)
         self.gpsembed = nn.Linear(4,16)
         self.weekembed = nn.Embedding(8, 3)
-        self.dateembed = PositionalEncoding1D(10)
-        self.timeembed = PositionalEncoding1D(20)
+        self.dateembed = CyclicalTimeEncoding(10,period=365.0)
+        self.timeembed = CyclicalTimeEncoding(d_model=20)
         
         self.timene_dim = 3 + 10 + 20 + bert_hiden_size
         self.timene = nn.Sequential(

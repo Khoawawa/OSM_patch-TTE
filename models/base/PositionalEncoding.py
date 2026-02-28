@@ -1,6 +1,43 @@
 import torch
 import torch.nn as nn
 import math
+import torch
+import torch.nn as nn
+import math
+
+class CyclicalTimeEncoding(nn.Module):
+    def __init__(self, d_model: int = 256, period: float = 1440.0):
+        super().__init__()
+        if d_model % 2 != 0:
+            raise ValueError("d_model must be even")
+
+        self.period = period
+        half_dim = d_model // 2
+        
+        # Tạo ra các tần số họa ba: 1, 2, 3... half_dim
+        # Điều này giúp các chiều khác nhau học được các mức độ chi tiết khác nhau của chu kỳ
+        frequencies = torch.arange(1, half_dim + 1).float()
+        self.register_buffer("frequencies", frequencies)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        x: (B, T, 1) or (B, T) chứa giá trị thời gian (vd: từ 0 đến 1439)
+        return: (B, T, d_model)
+        """
+        if x.dim() == 2:
+            x = x.unsqueeze(-1)  # (B, T, 1)
+
+        # Công thức: (2 * pi * x * frequency) / period
+        # Đảm bảo khi x = period, giá trị trong ngoặc tròn là bội số của 2*pi -> quay về điểm 0
+        x_arg = (2 * math.pi * x * self.frequencies) / self.period
+
+        pe = torch.cat(
+            [torch.sin(x_arg), torch.cos(x_arg)],
+            dim=-1
+        )  # (B, T, d_model)
+
+        return pe
+    
 class PositionalEncoding1D(nn.Module):
     def __init__(self, d_model: int = 256):
         super().__init__()

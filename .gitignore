@@ -6,3 +6,4 @@ cache
 *.yml
 *.graphml
 *.zip
+*.npz
