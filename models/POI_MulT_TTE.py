@@ -156,7 +156,7 @@ class POI_MulT_TTE(torch.nn.Module):
             mask_2view = torch.cat([segment_mask, updated_mask], dim=0) 
             mask_2view = mask_2view.transpose(0,1).contiguous() if not batch_first else mask_2view.contiguous() # (T,2B)
             mask_2view = mask_2view.unsqueeze(-1) # (T,2B,1)
-            pooled = (hiddens * mask_2view.float()).sum(dim=0) / new_lens.unsqueeze(-1).float() # (2B,seq_hidden_dim)
+            pooled = (hiddens * mask_2view.float()).sum(dim=0) # (2B,seq_hidden_dim)
             pooled_proj = self.cl_proj(pooled) # (2B,seq_hidden_dim//4)
             proj = F.normalize(pooled_proj, dim=-1) # (2B,seq_hidden_dim//4)
             proj_ori, proj_merged = proj.chunk(2, dim=0) # each (B,seq_hidden_dim//4)
@@ -174,7 +174,6 @@ class POI_MulT_TTE(torch.nn.Module):
         # mean pooling
         decoder = decoder * segment_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
         pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
-        pooled_decoder = pooled_decoder / seq_lens.unsqueeze(-1).float() # (B,seq_hidden_dim)
         pooled_decoder = torch.cat([pooled_decoder, weekrep, daterep, timerep], dim=-1) # (B,seq_hidden_dim + 33)
         output = self.mlp(pooled_decoder)
 
