@@ -33,20 +33,25 @@ class POI_MulT_TTE(torch.nn.Module):
         
         self.cl_loss = losses.NTXentLoss(temperature=0.1)
         self.alpha_h = nn.Parameter(torch.tensor(0.2))
-    def point_masking(self,x, mask_ratio=0.15, mask_value=0.0):
+    def point_masking(self, x, mask_ratio=0.15, mask_value=0.0):
         """
         x: (B, T, D)
-        returns masked_x, mask
+        returns:
+            masked_x: (B, T, D)
+            mask:     (B, T)  True = masked
         """
         B, T, D = x.shape
         device = x.device
 
-        # Bernoulli mask per point
-        mask = torch.rand(B, T, device=device) < mask_ratio
-        mask = mask.unsqueeze(-1)  # (B, T, 1)
+        # Bernoulli mask per time step
+        mask = torch.rand(B, T, device=device) < mask_ratio  # (B, T)
 
         masked_x = x.clone()
+
+        # Broadcast mask over feature dimension
         masked_x[mask] = mask_value
+        # equivalent to:
+        # masked_x = masked_x.masked_fill(mask.unsqueeze(-1), mask_value)
 
         return masked_x, mask
     def forward(self, input_, args):
