@@ -1,24 +1,24 @@
+from models.ContrasiveModel import TrajContrasiveEncoder
 import torch
 
-from models.base.ContextEncoder import ContextEncoder
+from models.base.SegmentEncoder import SegmentEncoder
 from models.base.LayerNormGRU import LayerNormGRU
-from models.base.RegionEncoder import PoiEncoder
 
 import torch.nn.functional as F
 import torch.nn as nn
 import math
 import copy
-
+from pytorch_metric_learning import losses
 batch_first = False
 
 class POI_MulT_TTE(torch.nn.Module):
     def __init__(self,
                  seq_hidden_dim, seq_layer,
-                 decoder_layer,
-                 bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size=27300):
+                 decoder_layer, contrasive_heads, contrasive_layer):
         super().__init__()
         # context encoder -> poi encoder -> temporal encoder -> decoder -> MLP
-        self.context_encoder = ContextEncoder(seq_hidden_dim, bert_attention_heads,bert_hidden_size,pad_token_id,bert_hidden_layers,vocab_size)        
+        self.segment_encoder = SegmentEncoder(seq_hidden_dim)
+        self.contrasive_encoder = TrajContrasiveEncoder(d_model=seq_hidden_dim, n_heads=contrasive_heads, num_layers=contrasive_layer)
         self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         
         decoder_head = 1
@@ -30,27 +30,53 @@ class POI_MulT_TTE(torch.nn.Module):
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
+        
+        self.cl_loss = losses.NTXentLoss(temperature=0.1)
+        
+    def point_masking(self,x, mask_ratio=0.15, mask_value=0.0):
+        """
+        x: (B, T, D)
+        returns masked_x, mask
+        """
+        B, T, D = x.shape
+        device = x.device
 
+        # Bernoulli mask per point
+        mask = torch.rand(B, T, device=device) < mask_ratio
+        mask = mask.unsqueeze(-1)  # (B, T, 1)
+
+        masked_x = x.clone()
+        masked_x[mask] = mask_value
+
+        return masked_x, mask
     def forward(self, input_, args):
-        segment_mask = input_['valid_mask']        
+        segment_mask = input_['valid_mask']  
+        is_train = args.phase == 'train'      
         # context output
-        ctx_output, loss_1, (weekrep,daterep,timerep) = self.context_encoder(input_, args) # (B,T,seq_hidden_dim)
+        seg_feats, datetimerep = self.segment_encoder(input_, args) # (B,T,seq_hidden_dim), (B,33)
+        # contrastive learning
+        masked_seg_feats, _ = self.point_masking(seg_feats)
+        z1, h1 = self.contrasive_encoder(seg_feats, src_key_padding_mask=~segment_mask.bool(), is_train=is_train)
+        if is_train:
+            z2,_ = self.contrasive_encoder(masked_seg_feats, src_key_padding_mask=~segment_mask.bool())
+            loss_cl = self.cl_loss(z1, z2)
+        else:
+            loss_cl = None
         # temporal modeling
-        ctx_output = ctx_output if batch_first else ctx_output.transpose(0,1).contiguous() # (T,B,Res + Ctx)
-        hiddens, _ = self.temporal_block(ctx_output, seq_lens = input_['lens'].long())
+        seg_feats = seg_feats + h1
+        seg_feats = seg_feats if batch_first else seg_feats.transpose(0,1).contiguous() # (T,B,Res + Ctx)
+        h, _ = self.temporal_block(seg_feats, seq_lens = input_['lens'].long())
         # decoder
-        device_type = "cuda" if hiddens.is_cuda else "cpu"
-        with torch.amp.autocast(device_type=device_type, enabled=False):
-            decoder = self.decoder(hiddens.float(), input_['lens'].long())
-        decoder = decoder if batch_first else decoder.transpose(0,1).contiguous()
-        # mean pooling
-        decoder = decoder * segment_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
-        pooled_decoder = decoder.sum(dim=1) # (B,seq_hidden_dim)
-        # pooled_decoder = pooled_decoder / input_['lens'].unsqueeze(-1).float() # (B,seq_hidden_dim)
-        pooled_decoder = torch.cat([pooled_decoder, weekrep, daterep, timerep], dim=-1) # (B,seq_hidden_dim + 33)
-        output = self.mlp(pooled_decoder)
+        with torch.amp.autocast(device_type="cuda" if h.is_cuda else "cpu", enabled=False):
+            d = self.decoder(h.float(), input_['lens'].long())
+        d = d if batch_first else d.transpose(0,1).contiguous()
+        # sum pooling + MLP
+        d = d * segment_mask.unsqueeze(-1).float() # (B,T,seq_hidden_dim)
+        pooled_d = d.sum(dim=1) # (B,seq_hidden_dim)
+        pooled_d = torch.cat([pooled_d, datetimerep], dim=-1) # (B,seq_hidden_dim + 33)
+        z = self.mlp(pooled_d)
 
-        return output, loss_1
+        return z, loss_cl
 
 
 class MultiHeadAttention(nn.Module):

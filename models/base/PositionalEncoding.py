@@ -38,6 +38,46 @@ class CyclicalTimeEncoding(nn.Module):
 
         return pe
     
+
+class PositionalEncodingIndex(nn.Module):
+    def __init__(self, d_model: int, max_len: int = 5000):
+        super().__init__()
+
+        pe = torch.zeros(max_len, d_model)          # (T, D)
+        position = torch.arange(0, max_len).float().unsqueeze(1)  # (T, 1)
+
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2).float()
+            * (-math.log(10000.0) / d_model)
+        )
+
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+
+        pe = pe.unsqueeze(0)  # (1, T, D)
+        self.register_buffer("pe", pe)
+
+    def forward(self, x: torch.Tensor, padding_mask: torch.Tensor = None):
+        """
+        Args:
+            x:              (B, T, D)
+            padding_mask:   (B, T)  boolean
+                            True  = **pad**   (to be masked)
+                            False = valid
+                            (matches the format expected by TransformerEncoderLayer src_key_padding_mask)
+        """
+        seq_len = x.shape[1]
+        pe = self.pe[:, :seq_len, :]           # (1, T, D)
+
+        if padding_mask is not None:
+            # Zero positional encoding where we will mask attention anyway
+            # ~padding_mask == valid positions
+            pe = pe * (~padding_mask).unsqueeze(-1).to(pe.dtype)
+
+            # Alternative (equivalent but sometimes clearer):
+            # pe = pe.masked_fill(padding_mask.unsqueeze(-1), 0.0)
+
+        return x + pe
 class PositionalEncoding1D(nn.Module):
     def __init__(self, d_model: int = 256):
         super().__init__()

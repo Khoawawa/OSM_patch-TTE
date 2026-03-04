@@ -1,6 +1,6 @@
 import torch
 
-from models.base.ContextEncoder import ContextEncoder
+from models.base.SegmentEncoder import ContextEncoder
 from models.base.LayerNormGRU import LayerNormGRU
 from models.base.VisualEncoder import FiLm_ResnetEncoder, CA_ResnetEncoder
 import torch.nn.functional as F

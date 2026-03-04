@@ -25,11 +25,18 @@ def collate_func(data, args, info_all):
     inds = []
     for _, l in enumerate(data):
         linkids.append(np.asarray(l[1]))
-        dateinfo.append(l[2:5])
+        # dateinfo: week, date, time
+        stime_row = l[2]
+        wday = int(stime_row[0])
+        doy = float(stime_row[1])
+        minute = float(stime_row[2])
+        doy_norm = doy / 365.0 * 2 * np.pi
+        minute_norm = minute / 1440.0 * 2 * np.pi
+        dateinfo.append([wday, doy_norm, minute_norm])
         inds.append(l[0])
     lens = np.asarray([len(k) for k in linkids], dtype=np.int16)
     
-    def info(xs, date):
+    def info(xs):
         infos = []
         length = 0
         for x in xs:
@@ -39,17 +46,16 @@ def collate_func(data, args, info_all):
             infot.append(info[1])
             infot.append(length)
             length += info[1]
-            infot += list(date)
             try:
                 infot += [nodeinfo[info[2]][0],nodeinfo[info[2]][1],nodeinfo[info[3]][0],nodeinfo[info[3]][1]]
             except:
                 print(info)
             infos.append(np.asarray(infot))
-            # highway length sumoflength date3 gps4
+            # highway length sumoflength gps4
 
         return infos
 
-    con_links = np.concatenate([info(b, dateinfo[ind]) for ind, b in enumerate(linkids)], dtype='object')
+    con_links = np.concatenate([info(b) for b in linkids], dtype='object')
     
     mask = np.arange(lens.max()) < lens[:, None]
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
@@ -57,41 +63,12 @@ def collate_func(data, args, info_all):
     con_links[:, 6:10] = scaler2.transform(con_links[:, 6:10])
 
     padded[mask] = con_links
-    rawlinks = np.full(mask.shape, fill_value=args.data_config['edges'] + 1, dtype=np.int16)
-    rawlinks[mask] = np.concatenate(linkids)
-
-    def random_mask(tokens: np.array, rate: float):
-        replaces = np.where(np.random.random(len(tokens)) <= rate)[0]
-        labels = np.full(len(tokens),dtype=np.int16, fill_value=-100)
-        tokens = tokens.copy()
-
-        labels[replaces] = tokens[replaces]
-        tokens[replaces] = np.asarray([args.data_config['edges'] + 1] * len(replaces))   # 此处直接赋值会改变dataset原始值，应该考虑采用深拷贝复制一份新数组再更改
-        return labels, tokens
-
-
-    mask_label_tmp = []
-    sub_input_tmp = []
-    for k in linkids:
-        tmp1, tmp2 = random_mask(k, rate=args.mask_rate)
-        mask_label_tmp.append(tmp1)
-        sub_input_tmp.append(tmp2)
-    mask_label = np.full(mask.shape, dtype=np.int16, fill_value=-100)
-    mask_label[mask] = np.concatenate(mask_label_tmp)
-
-    linkindex = np.full(mask.shape, fill_value=args.data_config['edges'] + 1, dtype=np.int16)
-    linkindex[mask] = np.concatenate(sub_input_tmp)
-    mask_encoder = np.zeros(mask.shape, dtype=np.int16)
-    mask_encoder[mask] = np.concatenate([[1]*k for k in lens])
     
     return {'links':torch.from_numpy(padded),
+            'dateinfo': torch.from_numpy(np.asarray(dateinfo, dtype=np.float32)),
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 
             'inds': inds, 
-            'mask_label': torch.LongTensor(mask_label),
-            "linkindex":torch.LongTensor(linkindex), 
-            'rawlinks': torch.LongTensor(rawlinks),
-            'encoder_attention_mask': torch.LongTensor(mask_encoder)
             }, time
 
 class BatchSampler:
@@ -221,12 +198,13 @@ def create_model(args):
     return POI_MulT_TTE(**model_config)
         
 
-def create_main_loss(loss_bert,loss, args):
+def create_main_loss(loss_cl,loss_eta, args):
     beta = args.beta
-    bert_weight  = 1 - beta
-        
-    return bert_weight*loss_bert / (loss_bert / loss + 1e-4).detach()\
-            + beta * loss\
+    
+    scale = (loss_eta.detach() / (loss_cl.detach() + 1e-6))
+    loss_cl_scaled = loss_cl * scale.clamp(0.1, 10.0)   
+     
+    return beta * loss_eta + (1 - beta) * loss_cl_scaled
 
 def create_loss(args):
     if args.loss == 'rmse':
