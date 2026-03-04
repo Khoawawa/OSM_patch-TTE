@@ -129,11 +129,13 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     
                     with torch.no_grad():
                         if hasattr(model, "alpha_h"):
+                            alpha_sigmoid = torch.sigmoid(model.alpha_h).item()
                             alpha_val = model.alpha_h.item()
-                            print(f"[alpha_h] {alpha_val:.4f}")
+                            print(f"[alpha_h] {alpha_val:.4f}\n [alpha_h sigmoid] {alpha_sigmoid:.4f}")
 
                             with open(model_folder + "/output.txt", "a") as f:
                                 f.write(f"alpha_h = {alpha_val:.6f}\n")
+                                f.write(f"alpha_h sigmoid = {alpha_sigmoid:.6f}\n")
 
             # scheduler.step(running_loss['val'])
     finally:
