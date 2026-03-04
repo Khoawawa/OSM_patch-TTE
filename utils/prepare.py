@@ -58,7 +58,7 @@ def collate_func(data, args, info_all):
     mask = np.arange(lens.max()) < lens[:, None]
     padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
     con_links[:, 1:3] = scaler.transform(con_links[:, 1:3])
-    con_links[:, 6:10] = scaler2.transform(con_links[:, 6:10])
+    con_links[:, 3:7] = scaler2.transform(con_links[:, 3:7])
 
     padded[mask] = con_links
     
