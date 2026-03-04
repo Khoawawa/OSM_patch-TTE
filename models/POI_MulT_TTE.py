@@ -53,7 +53,7 @@ class POI_MulT_TTE(torch.nn.Module):
         segment_mask = input_['valid_mask']  
         is_train = args.phase == 'train'      
         # context output
-        seg_feats, datetimerep = self.segment_encoder(input_, args) # (B,T,seq_hidden_dim), (B,33)
+        seg_feats, datetimerep = self.segment_encoder(input_) # (B,T,seq_hidden_dim), (B,33)
         # contrastive learning
         masked_seg_feats, _ = self.point_masking(seg_feats)
         z1, h1 = self.contrasive_encoder(seg_feats, src_key_padding_mask=~segment_mask.bool(), is_train=is_train)
