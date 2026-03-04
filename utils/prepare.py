@@ -56,7 +56,7 @@ def collate_func(data, args, info_all):
     con_links = np.concatenate([info(b) for b in linkids], dtype='object')
     
     mask = np.arange(lens.max()) < lens[:, None]
-    padded = np.zeros((*mask.shape, 1+2+3+4), dtype=np.float32)
+    padded = np.zeros((*mask.shape, 1+2+4), dtype=np.float32)
     con_links[:, 1:3] = scaler.transform(con_links[:, 1:3])
     con_links[:, 3:7] = scaler2.transform(con_links[:, 3:7])
 
