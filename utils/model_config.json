@@ -74,5 +74,12 @@
         "bert_attention_heads": 8,
         "bert_hidden_size": 64,
         "bert_hidden_layers":4
+    },
+    "TrajCl_MulT_TTE":{
+        "seq_hidden_dim": 128,
+        "seq_layer": 2,
+        "decoder_layer": 3,
+        "contrasive_heads": 4,
+        "contrasive_layer": 2
     }
 }
