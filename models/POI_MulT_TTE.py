@@ -30,8 +30,7 @@ class POI_MulT_TTE(torch.nn.Module):
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
-        
-        self.cl_loss = losses.NTXentLoss(temperature=0.1)
+        self.cl_loss = losses.SelfSupervisedLoss(losses.NTXentLoss(temperature=0.1))
         self.alpha_h = nn.Parameter(torch.tensor(0.2))
     def point_masking(self, x, mask_ratio=0.15, mask_value=0.0):
         """
