@@ -32,7 +32,7 @@ class POI_MulT_TTE(torch.nn.Module):
         )
         
         self.cl_loss = losses.NTXentLoss(temperature=0.1)
-        
+        self.alpha_h = nn.Parameter(torch.tensor(0.2))
     def point_masking(self,x, mask_ratio=0.15, mask_value=0.0):
         """
         x: (B, T, D)
@@ -59,11 +59,14 @@ class POI_MulT_TTE(torch.nn.Module):
         z1, h1 = self.contrasive_encoder(seg_feats, src_key_padding_mask=~segment_mask.bool(), is_train=is_train)
         if is_train:
             z2,_ = self.contrasive_encoder(masked_seg_feats, src_key_padding_mask=~segment_mask.bool())
+            z1 = F.normalize(z1, dim=-1)
+            z2 = F.normalize(z2, dim=-1)
             loss_cl = self.cl_loss(z1, z2)
         else:
             loss_cl = None
         # temporal modeling
-        seg_feats = seg_feats + h1
+        
+        seg_feats = seg_feats + torch.sigmoid(self.alpha_h) * h1  # (B,T,seq_hidden_dim)
         seg_feats = seg_feats if batch_first else seg_feats.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         h, _ = self.temporal_block(seg_feats, seq_lens = input_['lens'].long())
         # decoder
@@ -76,6 +79,7 @@ class POI_MulT_TTE(torch.nn.Module):
         pooled_d = torch.cat([pooled_d, datetimerep], dim=-1) # (B,seq_hidden_dim + 33)
         z = self.mlp(pooled_d)
 
+        # logging alpha to show trend
         return z, loss_cl
 
 
