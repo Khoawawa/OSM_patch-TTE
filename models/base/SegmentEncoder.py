@@ -44,7 +44,7 @@ class SegmentEncoder(nn.Module):
         feature = inputs['links']
         highwayrep = self.highwayembed(feature[:, :, 0].long()) # 5
         
-        gpsrep = torch.tanh(self.gpsembed(feature[:, :, 6:10].float())) # 16
+        gpsrep = torch.tanh(self.gpsembed(feature[:, :, 3:7].float())) # 16
         
         features = torch.cat([feature[..., 1:3], gpsrep,highwayrep], dim=-1) # 2 + 5 + 16 + 33
         features = self.represent(features) # (B,T,seq_hidden_dim)
