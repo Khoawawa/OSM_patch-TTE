@@ -65,8 +65,7 @@ class POI_MulT_TTE(torch.nn.Module):
             z2,_ = self.contrasive_encoder(masked_seg_feats, src_key_padding_mask=~segment_mask.bool())
             z1 = F.normalize(z1, dim=-1)
             z2 = F.normalize(z2, dim=-1)
-            embeddings = torch.cat([z1, z2], dim=0) # (2B, D)
-            loss_cl = self.cl_loss(embeddings)
+            loss_cl = self.cl_loss(z1, z2)
         else:
             loss_cl = None
         # temporal modeling
