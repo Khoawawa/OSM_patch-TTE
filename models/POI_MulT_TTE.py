@@ -69,7 +69,6 @@ class POI_MulT_TTE(torch.nn.Module):
         else:
             loss_cl = None
         # temporal modeling
-        h1 = h1.unsqueeze(1).expand_as(seg_feats)  # (B, T, D)
         assert seg_feats.shape == h1.shape
         seg_feats = seg_feats + torch.sigmoid(self.alpha_h) * h1
         seg_feats = seg_feats if batch_first else seg_feats.transpose(0,1).contiguous() # (T,B,Res + Ctx)
