@@ -26,10 +26,10 @@ def collate_func(data, args, info_all):
     for _, l in enumerate(data):
         linkids.append(np.asarray(l[1]))
         # dateinfo: week, date, time
-        stime_row = l[2]
-        wday = int(stime_row[0])
-        doy = float(stime_row[1])
-        minute = float(stime_row[2])
+        
+        wday = int(l[2])
+        doy = float(l[3])
+        minute = float(l[4])
         doy_norm = doy / 365.0 * 2 * np.pi
         minute_norm = minute / 1440.0 * 2 * np.pi
         dateinfo.append([wday, doy_norm, minute_norm])
