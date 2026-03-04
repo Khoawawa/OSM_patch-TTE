@@ -67,16 +67,13 @@ class POI_MulT_TTE(torch.nn.Module):
             z1 = F.normalize(z1, dim=-1)
             z2 = F.normalize(z2, dim=-1)
             embeddings = torch.cat([z1, z2], dim=0) # (2B, D)
-            labels = torch.cat([
-                torch.arange(len(z1), device=z1.device),
-                torch.arange(len(z1), device=z1.device)
-            ])
-            loss_cl = self.cl_loss(embeddings, labels)
+            loss_cl = self.cl_loss(embeddings)
         else:
             loss_cl = None
         # temporal modeling
-        
-        seg_feats = seg_feats + torch.sigmoid(self.alpha_h) * h1  # (B,T,seq_hidden_dim)
+        h1 = h1.unsqueeze(1).expand_as(seg_feats)  # (B, T, D)
+        assert seg_feats.shape == h1.shape
+        seg_feats = seg_feats + torch.sigmoid(self.alpha_h) * h1
         seg_feats = seg_feats if batch_first else seg_feats.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         h, _ = self.temporal_block(seg_feats, seq_lens = input_['lens'].long())
         # decoder
