@@ -70,7 +70,7 @@ class POI_MulT_TTE(torch.nn.Module):
             loss_cl = None
         # temporal modeling
         assert seg_feats.shape == h1.shape
-        seg_feats = seg_feats + torch.sigmoid(self.alpha_h) * h1
+        seg_feats = seg_feats + torch.sigmoid(self.alpha_h) * h1.detach()
         seg_feats = seg_feats if batch_first else seg_feats.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         h, _ = self.temporal_block(seg_feats, seq_lens = input_['lens'].long())
         # decoder
