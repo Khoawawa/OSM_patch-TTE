@@ -177,12 +177,12 @@ def load_datadict(args):
         if phase == 'train':
             loader[phase] = DataLoader(Datadict(data[phase]), batch_sampler=BatchSampler(data[phase], args.data_config['batch_size']),
                                         collate_fn=lambda x: collate_func(x, args, info_all),
-                                        pin_memory=True)
+                                        pin_memory=True,num_workers=2)
         else:
             
             loader[phase] = DataLoader(Datadict(data[phase]), batch_size=args.data_config['batch_size'],
                                         collate_fn=lambda x: collate_func(x, args, info_all),
-                                        shuffle=False, pin_memory=True)
+                                        shuffle=False, pin_memory=True,num_workers=2)
     return loader.copy(), StandardScaler2(mean=args.data_config['time_mean'], std=args.data_config['time_std'])
 
 
