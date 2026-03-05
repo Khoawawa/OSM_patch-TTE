@@ -157,7 +157,7 @@ class Datadict(Dataset):
         return len(self.content)
 def load_test_datadict(args):
     tdata = np.load(os.path.join(args.absPath,args.data_config['data_dir'],'test.npy'), allow_pickle=True)
-    test_loader = DataLoader(Datadict(tdata), batch_size=args.data_config['batch_size'],
+    test_loader = DataLoader(Datadict(tdata), batch_size=args.batch_size,
                                         collate_fn=lambda x: collate_func(x, args, info_all),
                                         pin_memory=True, shuffle=False)
     
