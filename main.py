@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('-M', '--mode', type=str, default='train', help='input the process mode', choices=['train', 'resume', 'test'])
     parser.add_argument('-d', '--dataset', type=str, default='porto', help='input the dataset name', choices=['chengdu','porto'])
     parser.add_argument('-i', '--identify', type=str, help='input the specific identification information', default='')
-
+    parser.add_argument('-B', '--batch_size', type=int, help='input the batch size', default=64)
     parser.add_argument('-D', '--device', type=str, help='input the chosen device', default="cuda:0")
     parser.add_argument('-o', '--optim', type=str, help='input the chosen optimization function', default="Adam", choices=['Adam','AdamW'])
     parser.add_argument('-E', '--epoch_cycle', type=int, help='input the epoch cycle for discriminator training', default=1)
