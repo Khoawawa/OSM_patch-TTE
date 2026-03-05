@@ -87,6 +87,6 @@
         "seq_layer": 2,
         "decoder_layer": 3,
         "contrasive_heads": 4,
-        "contrasive_layer": 2
+        "contrasive_layer": 4
     }
 }
