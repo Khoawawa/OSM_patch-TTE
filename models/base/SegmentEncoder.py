@@ -12,7 +12,7 @@ class SegmentEncoder(nn.Module):
         self.gpsembed = nn.Linear(4,16)
         
         self.weekembed = nn.Embedding(8, 3)
-        self.dateembed = PositionalEncoding1D(10,period=365.0)
+        self.dateembed = PositionalEncoding1D(10)
         self.timeembed = PositionalEncoding1D(d_model=20)
         
         self.timene_dim = 3 + 10 + 20
