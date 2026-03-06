@@ -94,21 +94,24 @@ class PositionalEncoding1D(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        x: (B, T, 1) or (B, T)
-        return: (B, T, d_model)
+        x: (B,) or (B,1)
+        return: (B, d_model)
         """
-        if x.dim() == 2:
-            x = x.unsqueeze(-1)  # (B, T, 1)
 
-        # broadcast: (B,T,1) * (d_model/2,) → (B,T,d_model/2)
-        x_arg = x * self.div_term
+        if x.dim() == 1:   # (B,)
+            x = x.unsqueeze(-1)
+
+        # x is now (B,1)
+
+        x_arg = x * self.div_term  # (B, d_model/2)
 
         pe = torch.cat(
             [torch.sin(x_arg), torch.cos(x_arg)],
             dim=-1
-        )  # (B, T, d_model)
+        )  # (B, d_model)
 
         return pe
+    
 class PositionalEncoding2D(nn.Module):
     def __init__(self, d_model: int = 256):
         """

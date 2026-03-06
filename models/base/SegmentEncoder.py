@@ -2,7 +2,7 @@ import math
 
 import torch
 import torch.nn as nn
-from models.base.PositionalEncoding import CyclicalTimeEncoding
+from models.base.PositionalEncoding import CyclicalTimeEncoding, PositionalEncoding1D
 
 class SegmentEncoder(nn.Module):
     def __init__(self, seq_hidden_dim):
@@ -12,8 +12,8 @@ class SegmentEncoder(nn.Module):
         self.gpsembed = nn.Linear(4,16)
         
         self.weekembed = nn.Embedding(8, 3)
-        self.dateembed = CyclicalTimeEncoding(10,period=365.0)
-        self.timeembed = CyclicalTimeEncoding(d_model=20)
+        self.dateembed = PositionalEncoding1D(10,period=365.0)
+        self.timeembed = PositionalEncoding1D(d_model=20)
         
         self.timene_dim = 3 + 10 + 20
         self.timeneprojection = nn.Sequential(
