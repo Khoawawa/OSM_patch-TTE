@@ -88,5 +88,14 @@
         "decoder_layer": 3,
         "contrasive_heads": 4,
         "contrasive_layer": 4
+    },
+    "MoCo-CL-TTE":{
+        "seq_hidden_dim": 128,
+        "seq_layer": 2,
+        "decoder_layer": 3,
+        "cl_hidden_dim": 64,
+        "cl_head": 4,
+        "cl_layer": 4,
+        "cl_queue_size": 1024
     }
 }

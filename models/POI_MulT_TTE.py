@@ -15,7 +15,7 @@ class POI_MulT_TTE(torch.nn.Module):
     def __init__(self,
                 seq_hidden_dim, cl_queue_size,cl_hidden_dim,cl_head,cl_layer,
                 seq_layer,
-                 decoder_layer,):
+                decoder_layer):
         super().__init__()
         self.segment_encoder = SegmentEncoder(seq_hidden_dim,cl_queue_size,cl_hidden_dim,cl_head,cl_layer)
         
