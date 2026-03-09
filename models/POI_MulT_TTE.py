@@ -13,12 +13,12 @@ batch_first = False
 
 class POI_MulT_TTE(torch.nn.Module):
     def __init__(self,
-                 seq_hidden_dim, seq_layer,
-                 decoder_layer, contrasive_heads, contrasive_layer):
+                seq_hidden_dim, cl_queue_size,cl_hidden_dim,cl_head,cl_layer,
+                seq_layer,
+                 decoder_layer,):
         super().__init__()
-        # context encoder -> poi encoder -> temporal encoder -> decoder -> MLP
-        self.segment_encoder = SegmentEncoder(seq_hidden_dim)
-        self.contrasive_encoder = TrajContrasiveEncoder(d_model=seq_hidden_dim, n_heads=contrasive_heads, num_layers=contrasive_layer)
+        self.segment_encoder = SegmentEncoder(seq_hidden_dim,cl_queue_size,cl_hidden_dim,cl_head,cl_layer)
+        
         self.temporal_block = LayerNormGRU(input_dim=seq_hidden_dim, hidden_dim=seq_hidden_dim, num_layers=seq_layer)
         
         decoder_head = 1
@@ -30,47 +30,14 @@ class POI_MulT_TTE(torch.nn.Module):
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
-        self.cl_loss = losses.SelfSupervisedLoss(losses.NTXentLoss(temperature=0.1))
         self.alpha_h = nn.Parameter(torch.tensor(0.2))
-    def point_masking(self, x, mask_ratio=0.15, mask_value=0.0):
-        """
-        x: (B, T, D)
-        returns:
-            masked_x: (B, T, D)
-            mask:     (B, T)  True = masked
-        """
-        B, T, D = x.shape
-        device = x.device
-
-        # Bernoulli mask per time step
-        mask = torch.rand(B, T, device=device) < mask_ratio  # (B, T)
-
-        masked_x = x.clone()
-
-        # Broadcast mask over feature dimension
-        masked_x[mask] = mask_value
-        # equivalent to:
-        # masked_x = masked_x.masked_fill(mask.unsqueeze(-1), mask_value)
-
-        return masked_x, mask
+    
     def forward(self, input_, args):
         segment_mask = input_['valid_mask']  
         is_train = args.phase == 'train'      
         # context output
-        seg_feats, datetimerep = self.segment_encoder(input_) # (B,T,seq_hidden_dim), (B,33)
-        # contrastive learning
-        masked_seg_feats, _ = self.point_masking(seg_feats)
-        z1, h1 = self.contrasive_encoder(seg_feats, src_key_padding_mask=~segment_mask.bool(), is_train=is_train)
-        if is_train:
-            z2,_ = self.contrasive_encoder(masked_seg_feats, src_key_padding_mask=~segment_mask.bool())
-            z1 = F.normalize(z1, dim=-1)
-            z2 = F.normalize(z2, dim=-1)
-            loss_cl = self.cl_loss(z1, z2)
-        else:
-            loss_cl = None
-        # temporal modeling
-        assert seg_feats.shape == h1.shape
-        seg_feats = seg_feats + torch.sigmoid(self.alpha_h) * h1.detach()
+        seg_feats, cl_loss,datetimerep = self.segment_encoder(input_) # (B,T,seq_hidden_dim)
+        
         seg_feats = seg_feats if batch_first else seg_feats.transpose(0,1).contiguous() # (T,B,Res + Ctx)
         h, _ = self.temporal_block(seg_feats, seq_lens = input_['lens'].long())
         # decoder
@@ -83,8 +50,7 @@ class POI_MulT_TTE(torch.nn.Module):
         pooled_d = torch.cat([pooled_d, datetimerep], dim=-1) # (B,seq_hidden_dim + 33)
         z = self.mlp(pooled_d)
 
-        # logging alpha to show trend
-        return z, loss_cl
+        return z, cl_loss
 
 
 class MultiHeadAttention(nn.Module):

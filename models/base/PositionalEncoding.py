@@ -44,6 +44,8 @@ class PositionalEncodingIndex(nn.Module):
     def __init__(self, d_model: int, max_len: int = 5000):
         super().__init__()
 
+        self.dropout = nn.Dropout(p=0.1)
+        
         pe = torch.zeros(max_len, d_model)          # (T, D)
         position = torch.arange(0, max_len).float().unsqueeze(1)  # (T, 1)
 
@@ -78,7 +80,7 @@ class PositionalEncodingIndex(nn.Module):
             # Alternative (equivalent but sometimes clearer):
             # pe = pe.masked_fill(padding_mask.unsqueeze(-1), 0.0)
 
-        return x + pe
+        return self.dropout(x + pe)
 class PositionalEncoding1D(nn.Module):
     def __init__(self, d_model: int = 256):
         super().__init__()

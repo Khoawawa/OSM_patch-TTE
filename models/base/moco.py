@@ -75,16 +75,36 @@ class MoCo(nn.Module):
 
         self.queue_ptr[0] = ptr
 
- 
-    def forward(self, kwargs_q, kwargs_k):
+    def masked_mean_pool(self, x, padding_mask=None):
+        """
+        x : (B, T, D)
+        padding_mask : (B, T)  True = padded
 
+        returns
+        pooled : (B, D)
+        """
+        if padding_mask is None:
+            return x.mean(dim=1)
+
+        valid_mask = ~padding_mask
+        valid_mask = valid_mask.unsqueeze(-1).float()
+
+        summed = (x * valid_mask).sum(dim=1)
+        counts = valid_mask.sum(dim=1).clamp(min=1e-6)
+
+        return summed / counts
+    def forward(self, kwargs_q, kwargs_k):
+        mask_q = kwargs_q.get("src_key_padding_mask")
+        mask_k = kwargs_k.get("src_key_padding_mask")
         # compute query features
-        q = self.mlp_q(self.encoder_q(**kwargs_q))  # queries: NxC
+        h = self.encoder_q(**kwargs_q)  # queries: BxTxd_model
+        pooled_h = self.masked_mean_pool(h, mask_q)  # (B, d_model)
+        q = self.mlp_q(pooled_h)  # queries: NxC
         q = nn.functional.normalize(q, dim=1)
 
         with torch.no_grad():
             self._momentum_update_key_encoder()  # update the key encoder
-            k = self.mlp_k(self.encoder_k(**kwargs_k))  # keys: NxC
+            k = self.mlp_k(self.masked_mean_pool(self.encoder_k(**kwargs_k), mask_k))  # keys: NxC
             k = nn.functional.normalize(k, dim=1)
 
         # compute logits
@@ -106,7 +126,7 @@ class MoCo(nn.Module):
         # dequeue and enqueue
         self._dequeue_and_enqueue(k)
 
-        return logits, labels
+        return logits, labels, h
 
     def loss(self, logit, target):
         return self.criterion(logit, target)
