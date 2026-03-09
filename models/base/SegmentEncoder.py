@@ -75,7 +75,7 @@ class SegmentEncoder(nn.Module):
         # masked_x = masked_x.masked_fill(mask.unsqueeze(-1), mask_value)
 
         return masked_x, mask
-    def forward(self, inputs, args):
+    def forward(self, inputs):
         # date
         dateinfo = inputs['dateinfo']
         
