@@ -37,22 +37,25 @@ class SegmentEncoder(nn.Module):
     def ada_merged_augment(self, x, mask_ratio=0.15):
         B, T, D = x.shape
         device = x.device
-        
-        merge_mask = torch.rand(B, T, device=device) < mask_ratio  # (B, T)
-        
+
+        merge_mask = torch.rand(B, T, device=device) < mask_ratio
+
         merged = x[:, :-1] + x[:, 1:]
-        
+
         x_aug = x.clone()
+
         x_aug[:, :-1] = torch.where(
-            merge_mask.unsqueeze(-1),
+            merge_mask[:, :-1].unsqueeze(-1),
             merged,
             x[:, :-1]
         )
+
         x_aug[:, 1:] = torch.where(
-            merge_mask.unsqueeze(-1),
+            merge_mask[:, :-1].unsqueeze(-1),
             merged,
             x[:, 1:]
         )
+
         return x_aug
     def point_masking(self, x, mask_ratio=0.15, mask_value=0.0):
         """
