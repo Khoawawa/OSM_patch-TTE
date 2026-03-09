@@ -197,11 +197,13 @@ def create_model(args):
 def create_main_loss(loss_cl,loss_eta, args):
     beta = args.beta
     
-    scale = (loss_eta.detach() / (loss_cl.detach() + 1e-6))
-    loss_cl_scaled = loss_cl * scale.clamp(0.1, 10.0)   
-     
+    # scale = (loss_eta.detach() / (loss_cl.detach() + 1e-6))
+    scale = 1 / (loss_cl / loss_eta + 1e-4).detach()
+    # loss_cl_scaled = loss_cl * scale.clamp(0.1, 10.0)   
+    loss_cl_scaled = loss_cl * scale.clamp(0.1, 10.0)
+    
     return beta * loss_eta + (1 - beta) * loss_cl_scaled
-
+  
 def create_loss(args):
     if args.loss == 'rmse':
         def loss(**kwargs):
