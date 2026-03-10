@@ -62,7 +62,7 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     
                     features = to_var(features, args.device)
                     truth_data = to_var(truth_data, args.device)
-                    
+                    print(features['merge_mask'])
                     with torch.set_grad_enabled(phase == 'train'):
                         with torch.amp.autocast(args.device):
                             output, loss_cl = model(features, args)       
