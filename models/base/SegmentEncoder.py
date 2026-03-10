@@ -83,8 +83,11 @@ class SegmentEncoder(nn.Module):
         merge_pad_mask = inputs['merge_pad_mask']
         merged_features = self.apply_merge(features, merge_start_mask, merge_pad_mask, self.pad_token)
         logits, labels, h = self.cl(features, merged_features, feature_lens, feature_lens, merge_pad_mask)
-        cl_loss = self.cl.loss(logits, labels)
-        
+        if self.training:
+            cl_loss = self.cl.loss(logits, labels)
+        else:
+            cl_loss = None
+
         time_h = torch.cat([h, datetimerep_expand], dim=-1)
         time_proj = time_h + self.timeneprojection(self.time_norm(time_h))
         time_rep = self.time_represent(time_proj)

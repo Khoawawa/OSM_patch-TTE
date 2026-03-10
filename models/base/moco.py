@@ -98,6 +98,8 @@ class MoCo(nn.Module):
         mask_k = kwargs_k.get("src_key_padding_mask")
         # compute query features
         h = self.encoder_q(**kwargs_q)  # queries: BxTxd_model
+        if not self.training:
+            return None, None, h
         pooled_h = self.masked_mean_pool(h, mask_q)  # (B, d_model)
         q = self.mlp_q(pooled_h)  # queries: NxC
         q = nn.functional.normalize(q, dim=1)
