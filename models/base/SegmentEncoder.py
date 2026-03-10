@@ -68,7 +68,8 @@ class SegmentEncoder(nn.Module):
         gpsrep = torch.tanh(self.gpsembed(feature[:, :, 3:7].float())) # 16
         features = torch.cat([feature[..., 1:3], gpsrep,highwayrep], dim=-1) # 2 + 5 + 16 + 33
         # semantic features
-        merge_start_mask, merge_pad_mask = inputs['merge_mask']
+        merge_start_mask = inputs['merge_start_mask']
+        merge_pad_mask = inputs['merge_pad_mask']
         merged_features = self.apply_merge(features, merge_start_mask, merge_pad_mask, self.pad_token)
         logits, labels, h = self.cl(features, merged_features, feature_lens, feature_lens, merge_pad_mask)
         
