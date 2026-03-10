@@ -34,7 +34,7 @@ class SegmentEncoder(nn.Module):
         )
         
         self.pad_token = nn.Parameter(torch.zeros(1,1,cl_in_dim))
-    def apply_merge(x, start_mask, pad_mask, pad_token):
+    def apply_merge(self,x, start_mask, pad_mask, pad_token):
         B, T, _ = x.shape
 
         span_mask = start_mask | pad_mask
