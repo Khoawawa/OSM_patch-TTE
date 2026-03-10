@@ -126,16 +126,13 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                         print(f"New best MAE {best_mae} at epoch {epoch}, model saved.")
                     else:
                         print(f"Current MAE {scores['MAE']} more than best MAE {best_mae}")
+                    alpha_val, alpha_sigmoid = model.get_SE_alpha()
                     
-                    # with torch.no_grad():
-                    #     if hasattr(model, "alpha_h"):
-                    #         alpha_sigmoid = torch.sigmoid(model.alpha_h).item()
-                    #         alpha_val = model.alpha_h.item()
-                    #         print(f"[alpha_h] {alpha_val:.4f}\n [alpha_h sigmoid] {alpha_sigmoid:.4f}")
+                    print(f"[alpha_h] {alpha_val:.4f}\n [alpha_h sigmoid] {alpha_sigmoid:.4f}")
 
-                    #         with open(model_folder + "/output.txt", "a") as f:
-                    #             f.write(f"alpha_h = {alpha_val:.6f}\n")
-                    #             f.write(f"alpha_h sigmoid = {alpha_sigmoid:.6f}\n")
+                    with open(model_folder + "/output.txt", "a") as f:
+                        f.write(f"alpha_h = {alpha_val:.6f}\n")
+                        f.write(f"alpha_h sigmoid = {alpha_sigmoid:.6f}\n")
 
             # scheduler.step(running_loss['val'])
     finally:

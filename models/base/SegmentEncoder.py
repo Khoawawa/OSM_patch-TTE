@@ -56,6 +56,11 @@ class SegmentEncoder(nn.Module):
         x_aug = torch.where(pad_mask.unsqueeze(-1), pad_token, x_aug)
 
         return x_aug
+    def get_alpha_h(self):
+        with torch.no_grad():
+            alpha_sigmoid = torch.sigmoid(self.alpha_h).item()
+            alpha_val = self.alpha_h.item()
+        return alpha_val, alpha_sigmoid
     def forward(self, inputs):
         # date
         dateinfo = inputs['dateinfo']
@@ -81,7 +86,6 @@ class SegmentEncoder(nn.Module):
         cl_loss = self.cl.loss(logits, labels)
         
         time_h = torch.cat([h, datetimerep_expand], dim=-1)
-        time_h_norm = self.time_norm(time_h)
         time_proj = time_h + self.timeneprojection(self.time_norm(time_h))
         time_rep = self.time_represent(time_proj)
         

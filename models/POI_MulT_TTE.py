@@ -31,7 +31,8 @@ class POI_MulT_TTE(torch.nn.Module):
             nn.Linear(seq_hidden_dim, 1)
         )
         # self.alpha_h = nn.Parameter(torch.tensor(0.2))
-    
+    def get_SE_alpha(self):
+        return self.segment_encoder.get_alpha_h()
     def forward(self, input_, args):
         segment_mask = input_['valid_mask']  
         is_train = args.phase == 'train'      
