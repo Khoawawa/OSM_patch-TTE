@@ -59,7 +59,7 @@ class SegmentEncoder(nn.Module):
         daterep   = self.dateembed(dateinfo[:, 1])
         timerep   = self.timeembed(dateinfo[:, 2])
         datetimerep = torch.cat([weekrep, daterep, timerep], dim=-1)
-        datetimerep = datetimerep.unsqueeze(1).expand(-1, inputs['links'].shape[1], -1) # (B,T,seq_hidden_dim)
+        datetimerep_expand = datetimerep.unsqueeze(1).expand(-1, inputs['links'].shape[1], -1) # (B,T,seq_hidden_dim)
         # spatial features
         feature = inputs['links']
         feature_lens = inputs['lens']
@@ -75,7 +75,7 @@ class SegmentEncoder(nn.Module):
         
         cl_loss = self.cl.loss(logits, labels)
         
-        time_h = torch.cat([h, datetimerep], dim=-1)
+        time_h = torch.cat([h, datetimerep_expand], dim=-1)
         time_proj = self.timeneprojection(time_h) + time_h # (B,T,timene_dim)
         time_norm = self.time_norm(time_proj)
         
