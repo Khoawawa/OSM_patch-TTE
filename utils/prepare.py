@@ -95,7 +95,8 @@ def collate_func(data, args, info_all):
     padded[mask] = con_links
     
     return {'links':torch.from_numpy(padded),
-            'merge_mask': (merge_start_mask, merge_pad_mask),
+            'merge_start_mask': merge_start_mask,
+            'merge_pad_mask': merge_pad_mask,
             'dateinfo': torch.from_numpy(np.asarray(dateinfo, dtype=np.float32)),
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 
