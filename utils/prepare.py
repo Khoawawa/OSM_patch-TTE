@@ -14,6 +14,37 @@ from models.POI_MulT_TTE import POI_MulT_TTE
 highway = {'living_street':1, 'morotway':2, 'motorway_link':3, 'plannned':4, 'trunk':5, "secondary":6, "trunk_link":7, "tertiary_link":8, "primary":9, "residential":10, "primary_link":11, "unclassified":12, "tertiary":13, "secondary_link":14}
 node_type = {'turning_circle':1, 'traffic_signals':2, 'crossing':3, 'motorway_junction':4, "mini_roundabout":5}
 poi_type = {'healthcare':0,'education':1,'business':2,'religious':3,'commercial':4,'transport_hub':5,'event_venue':6,'none':7}
+
+def generate_merge_masks(lens, T, prob=0.15, max_span=5):
+
+    B = len(lens)
+
+    start_mask = torch.zeros(B, T, dtype=torch.bool)
+    pad_mask = torch.zeros(B, T, dtype=torch.bool)
+
+    for b in range(B):
+
+        t = 0
+        L = lens[b]
+
+        while t < L-1:
+
+            if torch.rand(1).item() < prob:
+
+                span_len = torch.randint(2, max_span+1, (1,)).item()
+                span_len = min(span_len, L - t)
+
+                start_mask[b, t] = True
+
+                if span_len > 1:
+                    pad_mask[b, t+1:t+span_len] = True
+
+                t += span_len
+
+            else:
+                t += 1
+
+    return start_mask, pad_mask
 def collate_func(data, args, info_all):
     edgeinfo, nodeinfo, scaler, scaler2 = info_all
 
@@ -54,6 +85,7 @@ def collate_func(data, args, info_all):
         return infos
 
     con_links = np.concatenate([info(b) for b in linkids], dtype='object')
+    merge_start_mask, merge_pad_mask = generate_merge_masks(lens, lens.max(), prob=args.merge_ratio, max_span=args.merge_max_span)
     
     mask = np.arange(lens.max()) < lens[:, None]
     padded = np.zeros((*mask.shape, 1+2+4), dtype=np.float32)
@@ -63,6 +95,7 @@ def collate_func(data, args, info_all):
     padded[mask] = con_links
     
     return {'links':torch.from_numpy(padded),
+            'merge_mask': (merge_start_mask, merge_pad_mask),
             'dateinfo': torch.from_numpy(np.asarray(dateinfo, dtype=np.float32)),
             'valid_mask': mask,
             'lens':torch.LongTensor(lens), 

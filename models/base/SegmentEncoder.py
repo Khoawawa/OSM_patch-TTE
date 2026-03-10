@@ -33,51 +33,24 @@ class SegmentEncoder(nn.Module):
             nn.Linear(seq_hidden_dim, seq_hidden_dim)
         )
         
-        self.mask_token = nn.Parameter(torch.zeros(1,1,cl_in_dim))
-    def ada_merged_augment(self, x, mask_ratio=0.15):
-        B, T, D = x.shape
-        device = x.device
+        self.pad_token = nn.Parameter(torch.zeros(1,1,cl_in_dim))
+    def apply_merge(x, start_mask, pad_mask, pad_token):
+        B, T, _ = x.shape
 
-        merge_mask = torch.rand(B, T, device=device) < mask_ratio
+        span_mask = start_mask | pad_mask
+        span_mask_f = span_mask.float().unsqueeze(-1)
 
-        merged = x[:, :-1] + x[:, 1:]
+        summed = (x * span_mask_f).sum(dim=1)
+        counts = span_mask_f.sum(dim=1).clamp(min=1e-6)
 
-        x_aug = x.clone()
+        merged = summed / counts
 
-        x_aug[:, :-1] = torch.where(
-            merge_mask[:, :-1].unsqueeze(-1),
-            merged,
-            x[:, :-1]
-        )
+        merged_expand = merged.unsqueeze(1).expand(-1, T, -1)
 
-        x_aug[:, 1:] = torch.where(
-            merge_mask[:, :-1].unsqueeze(-1),
-            merged,
-            x[:, 1:]
-        )
+        x_aug = torch.where(start_mask.unsqueeze(-1), merged_expand, x)
+        x_aug = torch.where(pad_mask.unsqueeze(-1), pad_token, x_aug)
 
         return x_aug
-    def point_masking(self, x, mask_ratio=0.15, mask_value=0.0):
-        """
-        x: (B, T, D)
-        returns:
-            masked_x: (B, T, D)
-            mask:     (B, T)  True = masked
-        """
-        B, T, D = x.shape
-        device = x.device
-
-        # Bernoulli mask per time step
-        mask = torch.rand(B, T, device=device) < mask_ratio  # (B, T)
-
-        masked_x = x.clone()
-
-        # Broadcast mask over feature dimension
-        masked_x[mask] = mask_value
-        # equivalent to:
-        # masked_x = masked_x.masked_fill(mask.unsqueeze(-1), mask_value)
-
-        return masked_x, mask
     def forward(self, inputs):
         # date
         dateinfo = inputs['dateinfo']
@@ -95,8 +68,9 @@ class SegmentEncoder(nn.Module):
         gpsrep = torch.tanh(self.gpsembed(feature[:, :, 3:7].float())) # 16
         features = torch.cat([feature[..., 1:3], gpsrep,highwayrep], dim=-1) # 2 + 5 + 16 + 33
         # semantic features
-        merged_features = self.ada_merged_augment(features)
-        logits, labels, h = self.cl(features, merged_features, feature_lens, feature_lens)
+        merge_start_mask, merge_pad_mask = inputs['merge_mask']
+        merged_features = self.apply_merge(features, merge_start_mask, merge_pad_mask, self.pad_token)
+        logits, labels, h = self.cl(features, merged_features, feature_lens, feature_lens, merge_pad_mask)
         
         cl_loss = self.cl.loss(logits, labels)
         

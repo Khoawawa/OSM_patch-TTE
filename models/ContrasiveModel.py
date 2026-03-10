@@ -11,13 +11,14 @@ class MoCoTrajContrasiveEncoder(nn.Module):
 
         self.moco = MoCo(q_encoder, k_encoder, d_model, d_model, queue_size, temperature=temperature)
     
-    def forward(self, traj1_emb, traj2_emb, traj1_len, traj2_len):
+    def forward(self, traj1_emb, traj2_emb, traj1_len, traj2_len, traj2_merge_pad_mask):
         max_traj1_len = torch.max(traj1_len).item()
         max_traj2_len = torch.max(traj2_len).item()
         
         src_padding_mask1 = torch.arange(max_traj1_len, device=traj1_emb.device).unsqueeze(0) >= traj1_len.unsqueeze(1)  # (B, T1)
         src_padding_mask2 = torch.arange(max_traj2_len, device=traj2_emb.device).unsqueeze(0) >= traj2_len.unsqueeze(1)  # (B, T2)
-
+        src_padding_mask2 = src_padding_mask2 | traj2_merge_pad_mask  # Combine with merge pad mask
+        
         logits, labels, h = self.moco({'x': traj1_emb, 'src_key_padding_mask': src_padding_mask1},
                                     {'x': traj2_emb, 'src_key_padding_mask': src_padding_mask2})
         return logits, labels, h
