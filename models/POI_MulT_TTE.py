@@ -30,7 +30,7 @@ class POI_MulT_TTE(torch.nn.Module):
             nn.LeakyReLU(),
             nn.Linear(seq_hidden_dim, 1)
         )
-        self.alpha_h = nn.Parameter(torch.tensor(0.2))
+        # self.alpha_h = nn.Parameter(torch.tensor(0.2))
     
     def forward(self, input_, args):
         segment_mask = input_['valid_mask']  

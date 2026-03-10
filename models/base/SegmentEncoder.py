@@ -24,9 +24,13 @@ class SegmentEncoder(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(timene_dim, timene_dim)
         )
+        self.time_represent = nn.Sequential(
+            nn.Linear(timene_dim, seq_hidden_dim),
+            nn.LeakyReLU()
+        )
         self.time_norm = nn.LayerNorm(timene_dim)
         
-        hidden_size = cl_in_dim + timene_dim
+        hidden_size = cl_in_dim
         self.represent = nn.Sequential(
             nn.Linear(hidden_size, seq_hidden_dim),
             nn.LeakyReLU(),
@@ -34,6 +38,7 @@ class SegmentEncoder(nn.Module):
         )
         
         self.pad_token = nn.Parameter(torch.zeros(1,1,cl_in_dim))
+        self.alpha_h = nn.Parameter(torch.tensor(0.2))
     def apply_merge(self,x, start_mask, pad_mask, pad_token):
         B, T, _ = x.shape
 
@@ -67,21 +72,21 @@ class SegmentEncoder(nn.Module):
         
         gpsrep = torch.tanh(self.gpsembed(feature[:, :, 3:7].float())) # 16
         features = torch.cat([feature[..., 1:3], gpsrep,highwayrep], dim=-1) # 2 + 5 + 16 + 33
+        features_proj = self.represent(features) # (B,T,seq_hidden_dim)
         # semantic features
         merge_start_mask = inputs['merge_start_mask']
         merge_pad_mask = inputs['merge_pad_mask']
         merged_features = self.apply_merge(features, merge_start_mask, merge_pad_mask, self.pad_token)
         logits, labels, h = self.cl(features, merged_features, feature_lens, feature_lens, merge_pad_mask)
-        
         cl_loss = self.cl.loss(logits, labels)
         
         time_h = torch.cat([h, datetimerep_expand], dim=-1)
-        time_proj = self.timeneprojection(time_h) + time_h # (B,T,timene_dim)
-        time_norm = self.time_norm(time_proj)
+        time_h_norm = self.time_norm(time_h)
+        time_proj = time_h + self.timeneprojection(self.time_norm(time_h))
+        time_rep = self.time_represent(time_proj)
         
-        features = torch.cat([features, time_norm], dim=-1)
-        
-        features = self.represent(features) # (B,T,seq_hidden_dim)
+        gate = torch.sigmoid(self.alpha_h)
+        features = features_proj + gate * time_rep
         
         return features, cl_loss, datetimerep
     
