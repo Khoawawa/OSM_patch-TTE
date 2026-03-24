@@ -29,14 +29,7 @@ def test_model(model, data_loader, args):
         truth_data = to_var(truth_data, args.device)
 
         with torch.amp.autocast(args.device):
-            outputs, log_batch = model(features, args,is_log=True)                        
-        for k in log_batch.keys():
-            if k not in log:
-                log[k] = []
-            v = log_batch[k]
-            if torch.is_tensor(v):
-                v = v.detach().cpu().numpy()
-            log[k].append(v)
+            outputs, loss_cl = model(features, args)                        
         targets.append(truth_data.cpu().numpy())
         predictions.append(outputs.cpu().detach().numpy())
 
