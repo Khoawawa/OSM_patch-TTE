@@ -13,7 +13,9 @@ from utils.metric import calculate_metrics
 from utils.util import save_model, to_var
 from utils.prepare import create_main_loss
 
+# Keep this on to catch the exact line if it still crashes!
 torch.autograd.set_detect_anomaly(True)
+
 def set_requires_grad(module, flag: bool):
     for p in module.parameters():
         p.requires_grad = flag
@@ -39,12 +41,11 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
     save_dict, best_mae = {'state_dict': copy.deepcopy(model.state_dict()),
                            'epoch': 0
                            }, 10000    
-    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=.2, patience=2,
-    #                                                  threshold=1e-2, threshold_mode='rel', min_lr=1e-7)
-    # if hasattr(args, 'scheduler_state_dict'):
-    #     scheduler.load_state_dict(args.scheduler_state_dict)
     print("LR: ", optimizer.param_groups[0]['lr'])
-    scaler = torch.amp.GradScaler()
+    
+    # --- TEST: DISABLE SCALER ---
+    # scaler = torch.amp.GradScaler() 
+    
     try:
         for epoch in range(start_epoch + 1, num_epochs):
             running_loss = {phase: 0.0 for phase in phases}
@@ -67,18 +68,26 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                     truth_np = to_var(truth_data, args.device)
 
                     with torch.set_grad_enabled(phase == 'train'):
-                        with torch.amp.autocast(args.device):
-                            output, loss_1 = model(features, args)                        
-                            loss_2 = loss_func(truth=truth_np, predict=output)
-                            loss = create_main_loss(loss_1,loss_2,args)
+                        # --- TEST: DISABLE AUTOCAST ---
+                        # with torch.amp.autocast(args.device):
+                        
+                        # Forward pass in pure FP32
+                        output, loss_1 = model(features, args)                        
+                        loss_2 = loss_func(truth=truth_np, predict=output)
+                        loss = create_main_loss(loss_1,loss_2,args)
                         
                         if phase == 'train':    
                             optimizer.zero_grad()
-                            scaler.scale(loss).backward()
-                            scaler.unscale_(optimizer)
-                            torch.nn.utils.clip_grad.clip_grad_norm_(model.parameters(), 10.0)
-                            scaler.step(optimizer)
-                            scaler.update()
+                            
+                            # --- TEST: STANDARD BACKPROP ---
+                            loss.backward() 
+                            
+                            # Keep clipping to prevent standard exploding gradients
+                            torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0)
+                            
+                            # Standard optimizer step
+                            optimizer.step() 
+                            
                     desc = f"loss1: {loss_1.item()}, loss2: {loss_2.item()}"
                     tqdm_loader.set_description(
                         f'{phase} epoch: {epoch}, {phase} loss: {(running_loss[phase] / steps) :.8f}, '
@@ -89,17 +98,12 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                         predictions.append(pred_real.numpy())
 
                     running_loss[phase] += loss.item() * truth_data.size(0)
-                    # if step % 1000 == 0:
-                    #     torch.cuda.empty_cache()
-                    #     gc.collect()
 
                 torch.cuda.empty_cache()
                 gc.collect()
                     
                 predictions = np.concatenate(predictions).copy()
                 targets = np.concatenate(targets).copy()
-                
-                # assert predictions[0].shape == targets[0].shape, f'{predictions.shape}, {targets.shape}'
                 
                 scores = calculate_metrics(predictions.reshape(predictions.shape[0], -1),
                                            targets.reshape(targets.shape[0], -1), args, plot=epoch % 5 == 0, **kwargs)
@@ -121,16 +125,11 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                             state_dict=copy.deepcopy(model.state_dict()),
                             epoch=epoch,
                             optimizer_state_dict=copy.deepcopy(optimizer.state_dict()),
-                            # scheduler_state_dict=copy.deepcopy(scheduler.state_dict())
                         )
                         save_model(f"{model_folder}/best_model.pkl", **save_dict)
-                        
-
                     else:
-
                         print(f"Current MAE {scores['MAE']} more than best MAE {best_mae}")
 
-            # scheduler.step(running_loss['val'])
     finally:
         time_elapsed = time.perf_counter() - since
         print(f"cost {time_elapsed} seconds")
@@ -140,5 +139,4 @@ def train_model(model: nn.Module, data_loaders: Dict[str, DataLoader],
                    **{'state_dict': copy.deepcopy(model.state_dict()),
                       'epoch': epoch,
                       'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
-                    #   'scheduler_state_dict': copy.deepcopy(scheduler.state_dict())
                       })
