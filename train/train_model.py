@@ -12,6 +12,8 @@ from tqdm import tqdm
 from utils.metric import calculate_metrics
 from utils.util import save_model, to_var
 from utils.prepare import create_main_loss
+
+torch.autograd.set_detect_anomaly(True)
 def set_requires_grad(module, flag: bool):
     for p in module.parameters():
         p.requires_grad = flag
